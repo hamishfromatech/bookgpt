@@ -338,9 +338,11 @@ For support and questions:
 1. Check the [API documentation](#api-reference)
 2. Review [configuration options](#configuration)
 3. Open an issue on GitHub
-4. Join our Discord community
+4. Join our [Skool Community](https://www.skool.com/open-source-ai-builders-club/about)
 
 ---
 
 **Built with ❤️ using modern AI agent patterns and professional tool design principles.**
+The A-Tech Corporation PTY LTD.
+
 
