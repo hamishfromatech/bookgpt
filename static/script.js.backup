@@ -1,0 +1,3277 @@
+// BookGPT Frontend JavaScript - Crisp White & Smokey Black Theme
+
+// Global state
+let currentProjects = [];
+let currentProject = null;
+let currentProgressProjectId = null;
+let refreshInterval = null;
+let progressInterval = null;
+let isChatMode = false;
+
+// DOM elements
+const createProjectBtn = document.getElementById('createProjectBtn');
+const createProjectBtnSmall = document.getElementById('createProjectBtnSmall');
+const createFirstProjectBtn = document.getElementById('createFirstProjectBtn');
+const createProjectModal = document.getElementById('createProjectModal');
+const createProjectForm = document.getElementById('createProjectForm');
+const cancelBtn = document.getElementById('cancelBtn');
+const closeProjectModal = document.getElementById('closeProjectModal');
+const projectsList = document.getElementById('projectsList');
+const projectDetailsModal = document.getElementById('projectDetailsModal');
+const projectTitle = document.getElementById('projectTitle');
+const projectContent = document.getElementById('projectContent');
+
+// Theme toggle elements
+const themeToggle = document.getElementById('themeToggle');
+const themeToggleCircle = document.getElementById('themeToggleCircle');
+const themeIcon = document.getElementById('themeIcon');
+
+// Progress Interface elements
+const progressInterface = document.getElementById('progressInterface');
+const progressProjectTitle = document.getElementById('progressProjectTitle');
+const progressProjectStatus = document.getElementById('progressProjectStatus');
+const overallProgress = document.getElementById('overallProgress');
+const mainProgressBar = document.getElementById('mainProgressBar');
+const activityFeed = document.getElementById('activityFeed');
+let commandInput = document.getElementById('commandInput');
+const commandSendButton = document.getElementById('commandSendButton');
+const projectSidebar = document.getElementById('projectSidebar');
+let activityLoadingCard = null;
+
+// Settings DOM elements
+const settingsModal = document.getElementById('settingsModal');
+const closeSettingsModal = document.getElementById('closeSettingsModal');
+const llmProvider = document.getElementById('llmProvider');
+const llmModel = document.getElementById('llmModel');
+const llmApiKey = document.getElementById('llmApiKey');
+const llmBaseUrl = document.getElementById('llmBaseUrl');
+const llmTemperature = document.getElementById('llmTemperature');
+const llmMaxTokens = document.getElementById('llmMaxTokens');
+const temperatureValue = document.getElementById('temperatureValue');
+const testConnectionBtn = document.getElementById('testConnectionBtn');
+const saveLLMBtn = document.getElementById('saveLLMBtn');
+const connectionStatus = document.getElementById('connectionStatus');
+const saveSettingsBtn = document.getElementById('saveSettingsBtn');
+const saveWritingBtn = document.getElementById('saveWritingBtn');
+
+// Initialize the application
+document.addEventListener('DOMContentLoaded', function() {
+    loadProjects();
+    setupEventListeners();
+    initializeTheme();
+    checkLLMStatus();
+    
+    // Auto-refresh for active projects
+    refreshInterval = setInterval(autoRefresh, 30000); // Every 30 seconds
+});
+
+// Setup event listeners
+function setupEventListeners() {
+    // Create project buttons
+    createProjectBtn.addEventListener('click', showCreateProjectModal);
+    createProjectBtnSmall.addEventListener('click', showCreateProjectModal);
+    createFirstProjectBtn.addEventListener('click', showCreateProjectModal);
+    
+    // Modal controls
+    cancelBtn.addEventListener('click', hideCreateProjectModal);
+    closeProjectModal.addEventListener('click', hideProjectDetailsModal);
+    createProjectForm.addEventListener('submit', handleCreateProject);
+    
+    // Keyboard navigation
+    setupKeyboardNavigation();
+    
+    // Enhanced mouse interactions
+    setupMouseInteractions();
+    
+    // Close modals when clicking outside
+    createProjectModal.addEventListener('click', function(e) {
+        if (e.target === createProjectModal) {
+            hideCreateProjectModal();
+        }
+
+function setActivityLoadingCard(title, subtitle) {
+    if (!activityFeed) return;
+    if (!activityLoadingCard) {
+        activityFeed.innerHTML = '';
+        activityLoadingCard = document.createElement('div');
+        activityLoadingCard.className = 'bg-white border border-gray-200 rounded-xl p-6 shadow-sm flex items-center space-x-4';
+        activityFeed.appendChild(activityLoadingCard);
+    }
+    activityLoadingCard.innerHTML = `
+        <div class="w-10 h-10 border-2 border-gray-200 border-t-black rounded-full animate-spin"></div>
+        <div>
+            <div class="font-semibold text-gray-900">${title}</div>
+            <div class="text-sm text-gray-500">${subtitle || 'Working...'}</div>
+        </div>
+    `;
+}
+
+function clearActivityLoadingCard() {
+    if (activityLoadingCard && activityLoadingCard.parentNode) {
+        activityLoadingCard.parentNode.removeChild(activityLoadingCard);
+    }
+    activityLoadingCard = null;
+}
+    });
+    
+    projectDetailsModal.addEventListener('click', function(e) {
+        if (e.target === projectDetailsModal) {
+            hideProjectDetailsModal();
+        }
+    });
+    
+    // ESC key to close modals
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            hideCreateProjectModal();
+            hideProjectDetailsModal();
+        }
+    });
+}
+
+// Setup keyboard navigation
+function setupKeyboardNavigation() {
+    // Focus management for modals
+    const focusableElements = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
+    
+    // Modal focus trap
+    function trapFocus(element) {
+        const focusableContent = element.querySelectorAll(focusableElements);
+        const firstFocusableElement = focusableContent[0];
+        const lastFocusableElement = focusableContent[focusableContent.length - 1];
+        
+        document.addEventListener('keydown', function(e) {
+            if (element.classList.contains('hidden')) return;
+            
+            if (e.key === 'Tab') {
+                if (e.shiftKey) {
+                    if (document.activeElement === firstFocusableElement) {
+                        lastFocusableElement.focus();
+                        e.preventDefault();
+                    }
+                } else {
+                    if (document.activeElement === lastFocusableElement) {
+                        firstFocusableElement.focus();
+                        e.preventDefault();
+                    }
+                }
+            }
+        });
+    }
+    
+    // Apply focus trap to modals
+    trapFocus(createProjectModal);
+    trapFocus(projectDetailsModal);
+}
+
+// Setup enhanced mouse interactions
+function setupMouseInteractions() {
+    // Enhanced hover effects for project cards
+    document.addEventListener('mouseover', function(e) {
+        const card = e.target.closest('.project-card');
+        if (card) {
+            card.style.transform = 'translateY(-4px) scale(1.02)';
+        }
+    });
+    
+    document.addEventListener('mouseout', function(e) {
+        const card = e.target.closest('.project-card');
+        if (card) {
+            card.style.transform = 'translateY(0) scale(1)';
+        }
+    });
+    
+    // Button ripple effect
+    document.addEventListener('click', function(e) {
+        if (e.target.closest('.btn')) {
+            const button = e.target.closest('.btn');
+            const rect = button.getBoundingClientRect();
+            const ripple = document.createElement('span');
+            const size = Math.max(rect.width, rect.height);
+            const x = e.clientX - rect.left - size / 2;
+            const y = e.clientY - rect.top - size / 2;
+            
+            ripple.style.cssText = `
+                position: absolute;
+                width: ${size}px;
+                height: ${size}px;
+                left: ${x}px;
+                top: ${y}px;
+                background: rgba(255, 255, 255, 0.3);
+                border-radius: 50%;
+                transform: scale(0);
+                animation: ripple 0.6s linear;
+                pointer-events: none;
+            `;
+            
+            button.appendChild(ripple);
+            
+            setTimeout(() => {
+                ripple.remove();
+            }, 600);
+        }
+    });
+}
+
+// Initialize theme system
+function initializeTheme() {
+    const savedTheme = localStorage.getItem('theme') || 'light';
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const theme = savedTheme === 'system' ? (prefersDark ? 'dark' : 'light') : savedTheme;
+    
+    setTheme(theme);
+    setupThemeToggle();
+}
+
+// Setup theme toggle event listener
+function setupThemeToggle() {
+    if (themeToggle) {
+        themeToggle.addEventListener('click', toggleTheme);
+        
+        // Handle system theme changes when in system mode
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+            const currentTheme = localStorage.getItem('theme') || 'light';
+            if (currentTheme === 'system') {
+                setTheme(e.matches ? 'dark' : 'light');
+            }
+        });
+    }
+}
+
+// Toggle between light and dark themes
+function toggleTheme() {
+    const currentTheme = document.documentElement.getAttribute('data-theme') || 'light';
+    const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+    setTheme(newTheme);
+    localStorage.setItem('theme', newTheme);
+}
+
+// Set theme and update UI
+function setTheme(theme) {
+    const html = document.documentElement;
+    html.setAttribute('data-theme', theme);
+    
+    // Update toggle appearance
+    if (themeToggle && themeToggleCircle && themeIcon) {
+        if (theme === 'dark') {
+            themeToggle.classList.add('bg-gray-700');
+            themeToggle.classList.remove('bg-gray-200');
+            themeToggleCircle.style.transform = 'translateX(20px)';
+            themeIcon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />';
+        } else {
+            themeToggle.classList.add('bg-gray-200');
+            themeToggle.classList.remove('bg-gray-700');
+            themeToggleCircle.style.transform = 'translateX(0px)';
+            themeIcon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />';
+        }
+    }
+    
+    // Add smooth transition class
+    document.body.classList.add('theme-transitioning');
+    setTimeout(() => {
+        document.body.classList.remove('theme-transitioning');
+    }, 300);
+}
+
+// Load projects from API
+async function loadProjects() {
+    try {
+        showLoading(true, 'Loading projects...');
+        const response = await fetch('/api/projects');
+        const data = await response.json();
+        
+        if (data.success) {
+            currentProjects = data.projects;
+            displayProjects();
+            updateStats();
+        } else {
+            showNotification('Failed to load projects: ' + data.error, 'error');
+        }
+    } catch (error) {
+        console.error('Error loading projects:', error);
+        showNotification('Error loading projects', 'error');
+    } finally {
+        showLoading(false);
+    }
+}
+
+// Update dashboard statistics
+function updateStats() {
+    const totalProjects = currentProjects.length;
+    const totalChapters = currentProjects.reduce((sum, p) => sum + p.chapters_completed, 0);
+    const totalWords = currentProjects.reduce((sum, p) => sum + p.total_words, 0);
+    
+    // Animate numbers
+    animateNumber('totalProjects', totalProjects);
+    animateNumber('totalChapters', totalChapters);
+    animateNumber('totalWords', totalWords, true);
+}
+
+// Number animation function
+function animateNumber(elementId, targetValue, format = false) {
+    const element = document.getElementById(elementId);
+    if (!element) return;
+    
+    const startValue = parseInt(element.textContent) || 0;
+    const duration = 1000;
+    const startTime = performance.now();
+    
+    function updateNumber(currentTime) {
+        const elapsed = currentTime - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        const easedProgress = 1 - Math.pow(1 - progress, 3); // Ease out cubic
+        
+        const currentValue = Math.floor(startValue + (targetValue - startValue) * easedProgress);
+        element.textContent = format ? currentValue.toLocaleString() : currentValue;
+        
+        if (progress < 1) {
+            requestAnimationFrame(updateNumber);
+        }
+    }
+    
+    requestAnimationFrame(updateNumber);
+}
+
+// Display projects in the grid
+function displayProjects() {
+    projectsList.innerHTML = '';
+    
+    if (currentProjects.length === 0) {
+        document.getElementById('emptyState').classList.remove('hidden');
+        return;
+    }
+    
+    document.getElementById('emptyState').classList.add('hidden');
+    
+    // Add staggered animation for cards
+    currentProjects.forEach((project, index) => {
+        const projectCard = createProjectCard(project);
+        // Add delay for staggered animation
+        projectCard.style.animationDelay = `${index * 0.05}s`;
+        projectsList.appendChild(projectCard);
+    });
+}
+
+// Create project card element
+function createProjectCard(project) {
+    const card = document.createElement('div');
+    card.className = 'card project-card fade-in';
+    
+    const progressPercentage = project.target_length > 0 ? 
+        Math.min(100, (project.total_words / project.target_length) * 100) : 0;
+    
+    const statusClasses = {
+        'created': 'bg-gray-100 text-gray-700 border-gray-300',
+        'planning': 'bg-blue-100 text-blue-700 border-blue-300',
+        'research': 'bg-indigo-100 text-indigo-700 border-indigo-300',
+        'writing': 'bg-green-100 text-green-700 border-green-300',
+        'editing': 'bg-yellow-100 text-yellow-700 border-yellow-300',
+        'completed': 'bg-emerald-100 text-emerald-700 border-emerald-300',
+        'failed': 'bg-red-100 text-red-700 border-red-300'
+    };
+    
+    const badgeClasses = statusClasses[project.status] || statusClasses['created'];
+    
+    const icon = {
+        'created': '🆕',
+        'planning': '📋',
+        'research': '🔍',
+        'writing': '✍️',
+        'editing': '✏️',
+        'completed': '✅',
+        'failed': '❌'
+    }[project.status] || '📄';
+    
+    card.innerHTML = `
+        <div class="relative overflow-hidden">
+            <!-- Status indicator bar -->
+            <div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-black via-gray-600 to-transparent opacity-20"></div>
+            
+            <!-- Main content with padding -->
+            <div class="p-6">
+                <!-- Header -->
+                <div class="flex justify-between items-start mb-4">
+                    <div class="flex-1 min-w-0">
+                        <h3 class="text-xl font-bold text-gray-900 mb-1 truncate">
+                            ${escapeHtml(project.title)}
+                        </h3>
+                        <div class="flex items-center gap-2 text-sm text-gray-600">
+                            <span class="font-medium">${project.genre.replace('_', ' ')}</span>
+                            <span class="opacity-50">•</span>
+                            <span>${project.target_length.toLocaleString()} words target</span>
+                        </div>
+                    </div>
+                    <span class="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold border ${badgeClasses} ml-2 whitespace-nowrap">
+                        <span class="text-sm">${icon}</span>
+                        ${project.status.replace('_', ' ')}
+                    </span>
+                </div>
+                
+                <!-- Stats Grid -->
+                <div class="grid grid-cols-3 gap-3 mb-4">
+                    <div class="bg-gray-50 rounded-lg p-3 text-center">
+                        <div class="text-2xl font-bold text-gray-900">${progressPercentage.toFixed(0)}%</div>
+                        <div class="text-xs text-gray-600 mt-1">Progress</div>
+                    </div>
+                    <div class="bg-gray-50 rounded-lg p-3 text-center">
+                        <div class="text-2xl font-bold text-gray-900">${project.total_words.toLocaleString()}</div>
+                        <div class="text-xs text-gray-600 mt-1">Words</div>
+                    </div>
+                    <div class="bg-gray-50 rounded-lg p-3 text-center">
+                        <div class="text-2xl font-bold text-gray-900">${project.chapters_completed}</div>
+                        <div class="text-xs text-gray-600 mt-1">Chapters</div>
+                    </div>
+                </div>
+                
+                <!-- Progress Bar -->
+                <div class="mb-4">
+                    <div class="flex justify-between items-center mb-1">
+                        <span class="text-xs font-medium text-gray-600">Word Count Progress</span>
+                        <span class="text-xs text-gray-500">${project.total_words.toLocaleString()} / ${project.target_length.toLocaleString()}</span>
+                    </div>
+                    <div class="chapter-progress h-3 bg-gray-200 rounded-full overflow-hidden">
+                        <div class="chapter-progress-fill h-full bg-gradient-to-r from-black to-gray-600 rounded-full transition-all duration-500 ease-out" style="width: ${progressPercentage}%"></div>
+                    </div>
+                </div>
+                
+                <!-- Quick Actions -->
+                <div class="flex gap-2 mb-4">
+                    ${project.status === 'created' ? `
+                        <button onclick="startWriting('${project.id}')" 
+                                class="flex-1 bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-3 rounded-lg transition-all hover:shadow-md transform active:scale-95">
+                            ▶️ Start Writing
+                        </button>
+                    ` : ''}
+                    ${project.status === 'writing' || project.status === 'research' || project.status === 'editing' ? `
+                        <button onclick="showProgressInterface('${project.id}')" 
+                                class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-3 rounded-lg transition-all hover:shadow-md transform active:scale-95">
+                            📊 View Progress
+                        </button>
+                    ` : ''}
+                    ${project.status === 'completed' ? `
+                        <button onclick="downloadBook('${project.id}')" 
+                                class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2 px-3 rounded-lg transition-all hover:shadow-md transform active:scale-95">
+                            ⬇️ Download
+                        </button>
+                    ` : ''}
+                    <button onclick="viewProject('${project.id}')" 
+                            class="${(project.status === 'created' || project.status === 'completed') ? 'flex-1' : ''} bg-gray-900 hover:bg-gray-800 text-white font-semibold py-2 px-3 rounded-lg transition-all hover:shadow-md transform active:scale-95">
+                        📋 Details
+                    </button>
+                </div>
+                
+                <!-- Footer -->
+                <div class="flex justify-between items-center border-t border-gray-200 pt-3">
+                    <span class="text-xs text-gray-500">
+                        Updated ${formatRelativeDate(project.updated_at)}
+                    </span>
+                    <div class="flex gap-3">
+                        ${project.status === 'completed' ? `
+                            <button onclick="downloadBook('${project.id}')" 
+                                    class="text-blue-600 hover:text-blue-800 font-medium text-xs transition-colors">
+                                Download
+                            </button>
+                        ` : ''}
+                        <button onclick="deleteProjectFromList('${project.id}', '${project.title.replace(/'/g, "\\'")}')" 
+                                class="text-red-600 hover:text-red-800 font-medium text-xs transition-colors">
+                            Delete
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Add hover effect for the entire card
+    card.addEventListener('mouseenter', function() {
+        this.style.transform = 'translateY(-4px) scale(1.02)';
+        this.style.boxShadow = '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)';
+    });
+    
+    card.addEventListener('mouseleave', function() {
+        this.style.transform = 'translateY(0) scale(1)';
+        this.style.boxShadow = '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)';
+    });
+    
+    return card;
+}
+
+// Show create project modal with animation
+function showCreateProjectModal() {
+    createProjectModal.classList.remove('hidden');
+    const modalContent = createProjectModal.querySelector('.relative');
+    modalContent.classList.add('modal-enter', 'fade-in');
+    
+    // Focus first input
+    setTimeout(() => {
+        document.getElementById('title').focus();
+    }, 100);
+}
+
+// Hide create project modal
+function hideCreateProjectModal() {
+    const modalContent = createProjectModal.querySelector('.relative');
+    modalContent.classList.remove('fade-in');
+    modalContent.classList.add('fade-out');
+    
+    setTimeout(() => {
+        createProjectModal.classList.add('hidden');
+        createProjectForm.reset();
+        modalContent.classList.remove('fade-out');
+    }, 200);
+}
+
+// Handle project creation
+async function handleCreateProject(e) {
+    e.preventDefault();
+    
+    const formData = new FormData(createProjectForm);
+    const projectData = {
+        title: formData.get('title').trim(),
+        genre: formData.get('genre'),
+        target_length: parseInt(formData.get('target_length')),
+        writing_style: formData.get('writing_style'),
+        description: formData.get('description').trim(),
+        characters: [], // Will be added later through editing
+        user_id: 'default_user' // Will be extended for multi-user support
+    };
+    
+    // Validation
+    if (!projectData.title || !projectData.genre || !projectData.target_length) {
+        showNotification('Please fill in all required fields', 'error');
+        return;
+    }
+    
+    try {
+        showLoading(true, 'Creating project...');
+        const response = await fetch('/api/projects', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(projectData)
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            // Add to projects list and update display
+            currentProjects.unshift(data.project);
+            displayProjects();
+            updateStats();
+            hideCreateProjectModal();
+            showNotification('Project created successfully!', 'success');
+            
+            // Auto-view the new project
+            setTimeout(() => {
+                viewProject(data.project.id);
+            }, 500);
+        } else {
+            showNotification('Failed to create project: ' + data.error, 'error');
+        }
+    } catch (error) {
+        console.error('Error creating project:', error);
+        showNotification('Error creating project', 'error');
+    } finally {
+        showLoading(false);
+    }
+}
+
+// View project details
+async function viewProject(projectId) {
+    try {
+        showLoading(true, 'Loading project details...');
+        const response = await fetch(`/api/projects/${projectId}`);
+        const data = await response.json();
+        
+        if (data.success) {
+            currentProject = data.project;
+            await displayProjectDetails();
+            showProjectDetailsModal();
+        } else {
+            showNotification('Failed to load project details', 'error');
+        }
+    } catch (error) {
+        console.error('Error loading project details:', error);
+        showNotification('Error loading project details', 'error');
+    } finally {
+        showLoading(false);
+    }
+}
+
+// Check for active background tasks
+async function checkProjectTaskStatus(projectId) {
+    try {
+        const response = await fetch(`/api/projects/${projectId}/task-status`);
+        const data = await response.json();
+        
+        if (data.success) {
+            return {
+                hasActiveTask: data.hasActiveTask,
+                taskData: data.taskData
+            };
+        } else {
+            console.warn('Failed to check task status:', data.error);
+            return { hasActiveTask: false, taskData: null };
+        }
+    } catch (error) {
+        console.error('Error checking task status:', error);
+        return { hasActiveTask: false, taskData: null };
+    }
+}
+
+// Display project details
+async function displayProjectDetails() {
+    if (!currentProject) return;
+    
+    console.log('Current project status:', currentProject.status);
+    
+    // Check for active background tasks
+    const taskStatus = await checkProjectTaskStatus(currentProject.id);
+    const hasActiveTask = taskStatus.hasActiveTask;
+    const taskData = taskStatus.taskData;
+    
+    // Use task status if available, otherwise project status
+    const effectiveStatus = taskData ? taskData.status : currentProject.status;
+    console.log('Effective status for UI:', effectiveStatus);
+    
+    const progressPercentage = currentProject.target_length > 0 ? 
+        Math.min(100, (currentProject.total_words / currentProject.target_length) * 100) : 0;
+    
+    projectTitle.textContent = currentProject.title;
+    
+    // Status badge with gradient
+    const statusConfig = {
+        'created': { bg: 'bg-gray-100', text: 'text-gray-700', border: 'border-gray-300', icon: '🆕' },
+        'planning': { bg: 'bg-blue-100', text: 'text-blue-700', border: 'border-blue-300', icon: '📋' },
+        'research': { bg: 'bg-indigo-100', text: 'text-indigo-700', border: 'border-indigo-300', icon: '🔍' },
+        'writing': { bg: 'bg-green-100', text: 'text-green-700', border: 'border-green-300', icon: '✍️' },
+        'editing': { bg: 'bg-yellow-100', text: 'text-yellow-700', border: 'border-yellow-300', icon: '✏️' },
+        'completed': { bg: 'bg-emerald-100', text: 'text-emerald-700', border: 'border-emerald-300', icon: '✅' },
+        'failed': { bg: 'bg-red-100', text: 'text-red-700', border: 'border-red-300', icon: '❌' },
+        'stopped': { bg: 'bg-orange-100', text: 'text-orange-700', border: 'border-orange-300', icon: '⏸️' }
+    };
+    
+    const statusStyle = statusConfig[effectiveStatus] || statusConfig['created'];
+    
+    projectContent.innerHTML = `
+        <!-- Header Section with Status -->
+        <div class="relative overflow-hidden rounded-xl bg-gradient-to-r from-gray-900 to-gray-800 p-6 mb-6 text-white shadow-xl">
+            <div class="absolute inset-0 opacity-20" style="background-image: radial-gradient(circle at 2px 2px, white 1px, transparent 0); background-size: 20px 20px;"></div>
+            <div class="relative z-10">
+                <div class="flex justify-between items-start mb-4">
+                    <div>
+                        <h2 class="text-2xl font-bold mb-2">${currentProject.title}</h2>
+                        <div class="flex items-center gap-3 text-sm opacity-90">
+                            <span class="bg-white/20 px-2 py-1 rounded">${currentProject.genre.replace('_', ' ')}</span>
+                            <span class="bg-white/20 px-2 py-1 rounded">${currentProject.writing_style}</span>
+                            <span class="bg-white/20 px-2 py-1 rounded">${currentProject.target_length.toLocaleString()} words</span>
+                        </div>
+                    </div>
+                    <span class="inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold ${statusStyle.bg} ${statusStyle.text} ${statusStyle.border} border backdrop-blur-sm">
+                        <span class="text-lg">${statusStyle.icon}</span>
+                        ${effectiveStatus.replace('_', ' ')}
+                    </span>
+                </div>
+                
+                <!-- Large progress bar -->
+                <div class="mt-4">
+                    <div class="flex justify-between text-sm mb-2">
+                        <span class="opacity-90">Overall Progress</span>
+                        <span class="font-bold">${progressPercentage.toFixed(1)}%</span>
+                    </div>
+                    <div class="h-3 bg-white/20 rounded-full overflow-hidden backdrop-blur-sm">
+                        <div class="h-full bg-gradient-to-r from-green-400 to-emerald-500 rounded-full transition-all duration-500 ease-out" style="width: ${progressPercentage}%"></div>
+                    </div>
+                    <div class="flex justify-between mt-2 text-xs opacity-80">
+                        <span>${currentProject.total_words.toLocaleString()} words written</span>
+                        <span>${Math.max(0, currentProject.target_length - currentProject.total_words).toLocaleString()} remaining</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Stats Cards Grid -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+            <div class="card p-5 text-center transform hover:scale-105 transition-all">
+                <div class="text-3xl font-bold text-gray-900 mb-1">${currentProject.total_words.toLocaleString()}</div>
+                <div class="text-xs font-semibold text-gray-600 uppercase tracking-wide">Words</div>
+            </div>
+            <div class="card p-5 text-center transform hover:scale-105 transition-all">
+                <div class="text-3xl font-bold text-gray-900 mb-1">${currentProject.chapters_completed}</div>
+                <div class="text-xs font-semibold text-gray-600 uppercase tracking-wide">Chapters</div>
+            </div>
+            <div class="card p-5 text-center transform hover:scale-105 transition-all">
+                <div class="text-3xl font-bold text-gray-900 mb-1">${progressPercentage.toFixed(0)}%</div>
+                <div class="text-xs font-semibold text-gray-600 uppercase tracking-wide">Complete</div>
+            </div>
+            <div class="card p-5 text-center transform hover:scale-105 transition-all">
+                <div class="text-3xl font-bold text-gray-900 mb-1">${calculateProjectAge(currentProject.created_at)}</div>
+                <div class="text-xs font-semibold text-gray-600 uppercase tracking-wide">Age</div>
+            </div>
+        </div>
+        
+        <!-- Timeline Card -->
+        <div class="card mb-6 p-6">
+            <h4 class="font-bold text-gray-900 mb-4 flex items-center gap-2">
+                <span class="text-xl">📅</span> 
+                <span class="text-lg">Project Timeline</span>
+            </h4>
+            <div class="grid md:grid-cols-3 gap-4">
+                <div class="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                    <div class="text-xs text-gray-600 font-semibold uppercase mb-1">Created</div>
+                    <div class="font-medium text-gray-900">${new Date(currentProject.created_at).toLocaleDateString()}</div>
+                    <div class="text-xs text-gray-500">${new Date(currentProject.created_at).toLocaleTimeString()}</div>
+                </div>
+                <div class="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                    <div class="text-xs text-gray-600 font-semibold uppercase mb-1">Last Updated</div>
+                    <div class="font-medium text-gray-900">${new Date(currentProject.updated_at).toLocaleDateString()}</div>
+                    <div class="text-xs text-gray-500">${new Date(currentProject.updated_at).toLocaleTimeString()}</div>
+                </div>
+                <div class="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                    <div class="text-xs text-gray-600 font-semibold uppercase mb-1">Progress Today</div>
+                    <div class="font-medium text-gray-900">${currentProject.total_words > 0 ? 'Active' : 'Not started'}</div>
+                    <div class="text-xs text-gray-500">${currentProject.total_words.toLocaleString()} total words</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Two Column Layout for Details -->
+        <div class="grid md:grid-cols-2 gap-6 mb-6">
+            <!-- Book Details -->
+            <div class="card p-6">
+                <h4 class="font-bold text-gray-900 mb-4 flex items-center gap-2">
+                    <span class="text-xl">📚</span> 
+                    <span class="text-lg">Book Details</span>
+                </h4>
+                <div class="space-y-3">
+                    <div class="flex justify-between items-center py-2 border-b border-gray-100">
+                        <span class="text-gray-600 font-medium">Genre</span>
+                        <span class="font-semibold text-gray-900 capitalize">${currentProject.genre.replace('_', ' ')}</span>
+                    </div>
+                    <div class="flex justify-between items-center py-2 border-b border-gray-100">
+                        <span class="text-gray-600 font-medium">Writing Style</span>
+                        <span class="font-semibold text-gray-900 capitalize">${currentProject.writing_style}</span>
+                    </div>
+                    <div class="flex justify-between items-center py-2 border-b border-gray-100">
+                        <span class="text-gray-600 font-medium">Target Length</span>
+                        <span class="font-semibold text-gray-900">${currentProject.target_length.toLocaleString()} words</span>
+                    </div>
+                    <div class="flex justify-between items-center py-2 border-b border-gray-100">
+                        <span class="text-gray-600 font-medium">Words Remaining</span>
+                        <span class="font-semibold text-gray-900">${Math.max(0, currentProject.target_length - currentProject.total_words).toLocaleString()} words</span>
+                    </div>
+                    <div class="flex justify-between items-center pt-2">
+                        <span class="text-gray-600 font-medium">Project ID</span>
+                        <span class="font-mono text-xs bg-gray-100 px-2 py-1 rounded">${currentProject.id.substring(0, 12)}...</span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Project Info -->
+            <div class="card p-6">
+                <h4 class="font-bold text-gray-900 mb-4 flex items-center gap-2">
+                    <span class="text-xl">📝</span> 
+                    <span class="text-lg">Project Info</span>
+                </h4>
+                <div class="space-y-4">
+                    ${currentProject.metadata?.description ? `
+                        <div>
+                            <div class="text-xs font-semibold text-gray-600 uppercase mb-2">Description</div>
+                            <div class="text-sm text-gray-800 leading-relaxed">${currentProject.metadata.description}</div>
+                        </div>
+                    ` : ''}
+                    ${currentProject.metadata?.characters && currentProject.metadata.characters.length > 0 ? `
+                        <div>
+                            <div class="text-xs font-semibold text-gray-600 uppercase mb-2">Characters (${currentProject.metadata.characters.length})</div>
+                            <div class="flex flex-wrap gap-2">
+                                ${currentProject.metadata.characters.slice(0, 5).map(char => 
+                                    `<span class="bg-blue-50 text-blue-700 px-2 py-1 rounded text-xs font-medium">${char}</span>`
+                                ).join('')}
+                                ${currentProject.metadata.characters.length > 5 ? `<span class="bg-gray-100 text-gray-600 px-2 py-1 rounded text-xs font-medium">+${currentProject.metadata.characters.length - 5} more</span>` : ''}
+                            </div>
+                        </div>
+                    ` : ''}
+                    ${!currentProject.metadata?.description && (!currentProject.metadata?.characters || currentProject.metadata.characters.length === 0) ? `
+                        <div class="text-center py-8 text-gray-500">
+                            <div class="text-4xl mb-2">📭</div>
+                            <div class="text-sm">No additional metadata yet</div>
+                            <div class="text-xs mt-1">Start the writing process to generate details</div>
+                        </div>
+                    ` : ''}
+                </div>
+            </div>
+        </div>
+        
+        <!-- Expandable Sections -->
+        <div class="space-y-3">
+            <!-- Chapters Overview -->
+            <div class="card overflow-hidden">
+                <button onclick="toggleSection('chaptersSection')" 
+                        class="w-full flex items-center justify-between p-5 bg-white hover:bg-gray-50 transition-colors">
+                    <h4 class="font-bold text-gray-900 flex items-center gap-2">
+                        <span class="text-lg">📖</span> 
+                        <span>Chapters Overview</span>
+                    </h4>
+                    <div class="flex items-center gap-3">
+                        <span class="text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-full font-semibold">${currentProject.chapters_completed} completed</span>
+                        <svg id="chaptersSectionChevron" class="w-5 h-5 text-gray-500 transform transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                        </svg>
+                    </div>
+                </button>
+                <div id="chaptersSection" class="hidden border-t border-gray-200">
+                    <div id="chaptersList" class="p-4">
+                        <div class="flex items-center justify-center py-8 text-gray-500">
+                            <div class="w-8 h-8 border-3 border-gray-300 border-t-gray-900 rounded-full animate-spin mr-3"></div>
+                            <span class="text-sm">Loading chapters...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Planning Documents -->
+            <div class="card overflow-hidden">
+                <button onclick="toggleSection('documentsSection')" 
+                        class="w-full flex items-center justify-between p-5 bg-white hover:bg-gray-50 transition-colors">
+                    <h4 class="font-bold text-gray-900 flex items-center gap-2">
+                        <span class="text-lg">🗂️</span> 
+                        <span>Planning Documents</span>
+                    </h4>
+                    <svg id="documentsSectionChevron" class="w-5 h-5 text-gray-500 transform transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                    </svg>
+                </button>
+                <div id="documentsSection" class="hidden border-t border-gray-200">
+                    <div id="documentsList" class="p-4">
+                        <div class="flex items-center justify-center py-8 text-gray-500">
+                            <div class="w-8 h-8 border-3 border-gray-300 border-t-gray-900 rounded-full animate-spin mr-3"></div>
+                            <span class="text-sm">Loading documents...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Execution History -->
+            <div class="card overflow-hidden">
+                <button onclick="toggleSection('historySection')" 
+                        class="w-full flex items-center justify-between p-5 bg-white hover:bg-gray-50 transition-colors">
+                    <h4 class="font-bold text-gray-900 flex items-center gap-2">
+                        <span class="text-lg">⚡</span> 
+                        <span>Execution History</span>
+                    </h4>
+                    <svg id="historySectionChevron" class="w-5 h-5 text-gray-500 transform transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                    </svg>
+                </button>
+                <div id="historySection" class="hidden border-t border-gray-200">
+                    <div id="historyList" class="p-4">
+                        <div class="flex items-center justify-center py-8 text-gray-500">
+                            <div class="w-8 h-8 border-3 border-gray-300 border-t-gray-900 rounded-full animate-spin mr-3"></div>
+                            <span class="text-sm">Loading history...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Project Statistics -->
+            <div class="card overflow-hidden">
+                <button onclick="toggleSection('statsSection')" 
+                        class="w-full flex items-center justify-between p-5 bg-white hover:bg-gray-50 transition-colors">
+                    <h4 class="font-bold text-gray-900 flex items-center gap-2">
+                        <span class="text-lg">📊</span> 
+                        <span>Project Statistics</span>
+                    </h4>
+                    <svg id="statsSectionChevron" class="w-5 h-5 text-gray-500 transform transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                    </svg>
+                </button>
+                <div id="statsSection" class="hidden border-t border-gray-200">
+                    <div id="statsList" class="p-4">
+                        <div class="flex items-center justify-center py-8 text-gray-500">
+                            <div class="w-8 h-8 border-3 border-gray-300 border-t-gray-900 rounded-full animate-spin mr-3"></div>
+                            <span class="text-sm">Loading statistics...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Action Buttons -->
+        <div class="mt-8 p-6 bg-gray-50 rounded-xl border border-gray-200 flex flex-wrap gap-3 justify-end">
+            ${currentProject.status === 'created' && !hasActiveTask ? `
+                <button onclick="startWriting('${currentProject.id}')" 
+                        class="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-bold py-3 px-6 rounded-lg transition-all transform hover:scale-105 shadow-lg">
+                    <span class="mr-2">🚀</span>
+                    Start Writing Process
+                </button>
+            ` : hasActiveTask || ['writing', 'research', 'editing', 'failed'].includes(currentProject.status) ? `
+                <button onclick="showProgressInterface('${currentProject.id}')" 
+                        class="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold py-3 px-6 rounded-lg transition-all transform hover:scale-105 shadow-lg">
+                    <span class="mr-2">📊</span>
+                    View Progress
+                </button>
+                <button onclick="stopWriting('${currentProject.id}')" 
+                        class="bg-white border-2 border-orange-500 text-orange-600 hover:bg-orange-50 font-bold py-3 px-6 rounded-lg transition-all transform hover:scale-105">
+                    <span class="mr-2">⏸️</span>
+                    Stop Writing
+                </button>
+            ` : ''}
+            
+            ${currentProject.status === 'completed' ? `
+                <button onclick="downloadBook('${currentProject.id}')" 
+                        class="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold py-3 px-6 rounded-lg transition-all transform hover:scale-105 shadow-lg">
+                    <span class="mr-2">⬇️</span>
+                    Download Book
+                </button>
+            ` : ''}
+            
+            <button onclick="deleteProject('${currentProject.id}')" 
+                    class="bg-white border-2 border-red-500 text-red-600 hover:bg-red-50 font-bold py-3 px-6 rounded-lg transition-all transform hover:scale-105">
+                <span class="mr-2">🗑️</span>
+                Delete Project
+            </button>
+        </div>
+    `;
+}
+
+// Show project details modal
+function showProjectDetailsModal() {
+    projectDetailsModal.classList.remove('hidden');
+    const modalContent = projectDetailsModal.querySelector('.relative');
+    modalContent.classList.add('modal-enter', 'fade-in');
+}
+
+// Hide project details modal
+function hideProjectDetailsModal() {
+    const modalContent = projectDetailsModal.querySelector('.relative');
+    modalContent.classList.remove('fade-in');
+    modalContent.classList.add('fade-out');
+    
+    setTimeout(() => {
+        projectDetailsModal.classList.add('hidden');
+        currentProject = null;
+        modalContent.classList.remove('fade-out');
+    }, 200);
+}
+
+// Calculate project age
+function calculateProjectAge(createdDate) {
+    const created = new Date(createdDate);
+    const now = new Date();
+    const diffTime = Math.abs(now - created);
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    
+    if (diffDays === 0) {
+        const diffHours = Math.floor(diffTime / (1000 * 60 * 60));
+        return diffHours === 0 ? 'Just now' : `${diffHours} hours ago`;
+    } else if (diffDays === 1) {
+        return 'Yesterday';
+    } else if (diffDays < 7) {
+        return `${diffDays} days ago`;
+    } else if (diffDays < 30) {
+        const weeks = Math.floor(diffDays / 7);
+        return `${weeks} week${weeks > 1 ? 's' : ''} ago`;
+    } else {
+        const months = Math.floor(diffDays / 30);
+        return `${months} month${months > 1 ? 's' : ''} ago`;
+    }
+}
+
+// Toggle expandable section
+function toggleSection(sectionId) {
+    const section = document.getElementById(sectionId);
+    const chevron = document.getElementById(sectionId + 'Chevron');
+    
+    if (section.classList.contains('hidden')) {
+        section.classList.remove('hidden');
+        chevron.classList.add('rotate-180');
+        
+        // Load content for the section
+        if (sectionId === 'chaptersSection') {
+            loadChaptersSection();
+        } else if (sectionId === 'documentsSection') {
+            loadDocumentsSection();
+        } else if (sectionId === 'historySection') {
+            loadHistorySection();
+        } else if (sectionId === 'statsSection') {
+            loadStatsSection();
+        }
+    } else {
+        section.classList.add('hidden');
+        chevron.classList.remove('rotate-180');
+    }
+}
+
+// Load chapters section
+async function loadChaptersSection() {
+    if (!currentProject) return;
+    
+    try {
+        const response = await fetch(`/api/projects/${currentProject.id}/chapters`);
+        const data = await response.json();
+        
+        if (data.success) {
+            const chaptersList = document.getElementById('chaptersList');
+            
+            if (data.chapters.length === 0) {
+                chaptersList.innerHTML = `
+                    <div class="text-center text-gray-500 py-4">
+                        <p>No chapters written yet.</p>
+                        <button onclick="startWriting('${currentProject.id}')" 
+                                class="btn btn-primary mt-2 px-4 py-2">
+                            Start Writing
+                        </button>
+                    </div>
+                `;
+            } else {
+                chaptersList.innerHTML = data.chapters.map(chapter => `
+                    <div class="border border-gray-200 rounded-lg p-4">
+                        <div class="flex justify-between items-start mb-2">
+                            <h5 class="font-medium text-gray-900">${chapter.title}</h5>
+                            <span class="text-xs px-2 py-1 rounded-full ${
+                                chapter.status === 'completed' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
+                            }">
+                                ${chapter.status}
+                            </span>
+                        </div>
+                        <div class="text-sm text-gray-600 mb-2">
+                            <span class="font-medium">${chapter.words.toLocaleString()}</span> words
+                        </div>
+                        ${chapter.preview ? `<div class="prose prose-sm text-gray-700 markdown-preview">${marked.parse(chapter.preview)}</div>` : ''}
+                    </div>
+                `).join('');
+            }
+        } else {
+            document.getElementById('chaptersList').innerHTML = `
+                <div class="text-center text-red-500 py-4">
+                    <p>Error loading chapters: ${data.error}</p>
+                </div>
+            `;
+        }
+    } catch (error) {
+        console.error('Error loading chapters:', error);
+        document.getElementById('chaptersList').innerHTML = `
+            <div class="text-center text-red-500 py-4">
+                <p>Error loading chapters</p>
+            </div>
+        `;
+    }
+}
+
+// Load history section
+async function loadHistorySection() {
+    if (!currentProject) return;
+    
+    try {
+        const response = await fetch(`/api/projects/${currentProject.id}/history`);
+        const data = await response.json();
+        
+        if (data.success) {
+            const historyList = document.getElementById('historyList');
+            
+            if (data.history.length === 0) {
+                historyList.innerHTML = `
+                    <div class="text-center text-gray-500 py-4">
+                        <p>No history available.</p>
+                    </div>
+                `;
+            } else {
+                historyList.innerHTML = data.history.map(item => `
+                    <div class="border border-gray-200 rounded-lg p-4">
+                        <div class="flex justify-between items-start mb-2">
+                            <h5 class="font-medium text-gray-900">${item.action}</h5>
+                            <span class="text-xs text-gray-500">
+                                ${new Date(item.timestamp).toLocaleDateString()}
+                            </span>
+                        </div>
+                        <p class="text-sm text-gray-700">${item.details}</p>
+                    </div>
+                `).join('');
+            }
+        } else {
+            document.getElementById('historyList').innerHTML = `
+                <div class="text-center text-red-500 py-4">
+                    <p>Error loading history: ${data.error}</p>
+                </div>
+            `;
+        }
+    } catch (error) {
+        console.error('Error loading history:', error);
+        document.getElementById('historyList').innerHTML = `
+            <div class="text-center text-red-500 py-4">
+                <p>Error loading history</p>
+            </div>
+        `;
+    }
+}
+
+// Load statistics section
+async function loadStatsSection() {
+    if (!currentProject) return;
+    
+    try {
+        const response = await fetch(`/api/projects/${currentProject.id}/statistics`);
+        const data = await response.json();
+        
+        if (data.success) {
+            const statsList = document.getElementById('statsList');
+            const stats = data.statistics;
+            
+            statsList.innerHTML = `
+                <div class="space-y-3">
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Average words per chapter:</span>
+                        <span class="font-medium">${stats.avg_words_per_chapter.toLocaleString()}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Completion rate:</span>
+                        <span class="font-medium">${stats.completion_rate}%</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Estimated completion:</span>
+                        <span class="font-medium">${stats.estimated_completion}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Total files created:</span>
+                        <span class="font-medium">${stats.total_files}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Writing velocity:</span>
+                        <span class="font-medium">${stats.writing_velocity} words/hour</span>
+                    </div>
+                </div>
+            `;
+        } else {
+            document.getElementById('statsList').innerHTML = `
+                <div class="text-center text-red-500 py-4">
+                    <p>Error loading statistics: ${data.error}</p>
+                </div>
+            `;
+        }
+    } catch (error) {
+        console.error('Error loading statistics:', error);
+        document.getElementById('statsList').innerHTML = `
+            <div class="text-center text-red-500 py-4">
+                <p>Error loading statistics</p>
+            </div>
+        `;
+    }
+}
+
+// Start writing process
+async function startWriting(projectId) {
+    try {
+        showLoading(true, 'Starting writing process...');
+        
+        const response = await fetch(`/api/projects/${projectId}/start`, {
+            method: 'POST'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showNotification('🚀 Writing process started successfully!', 'success');
+            
+            // Hide project details modal and show progress interface
+            hideProjectDetailsModal();
+            showProgressInterface(projectId);
+            
+            // Refresh projects list to show updated status
+            setTimeout(() => {
+                loadProjects();
+            }, 1000);
+        } else {
+            showNotification('❌ Failed to start writing: ' + data.error, 'error');
+        }
+    } catch (error) {
+        console.error('Error starting writing:', error);
+        showNotification('❌ Error starting writing process', 'error');
+    } finally {
+        showLoading(false);
+    }
+}
+
+// Stop writing process
+async function stopWriting(projectId) {
+    if (!confirm('Are you sure you want to stop the writing process?')) {
+        return;
+    }
+    
+    try {
+        showLoading(true, 'Stopping writing process...');
+        
+        const response = await fetch(`/api/projects/${projectId}/stop`, {
+            method: 'POST'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showNotification('⏹️ Writing process stopped', 'success');
+            
+            // Refresh projects list
+            loadProjects();
+            
+            // Hide progress interface if showing
+            hideProgressInterface();
+        } else {
+            showNotification('❌ Failed to stop writing: ' + data.error, 'error');
+        }
+    } catch (error) {
+        console.error('Error stopping writing:', error);
+        showNotification('❌ Error stopping writing process', 'error');
+    } finally {
+        showLoading(false);
+    }
+}
+
+// Delete project
+async function deleteProject(projectId) {
+    if (!confirm('Are you sure you want to delete this project? This action cannot be undone.')) {
+        return;
+    }
+    
+    try {
+        showLoading(true, 'Deleting project...');
+        
+        const response = await fetch(`/api/projects/${projectId}`, {
+            method: 'DELETE'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showNotification('🗑️ Project deleted successfully', 'success');
+            
+            // Remove from current projects list
+            currentProjects = currentProjects.filter(p => p.id !== projectId);
+            displayProjects();
+            updateStats();
+            
+            // Hide project details modal if open
+            hideProjectDetailsModal();
+        } else {
+            showNotification('❌ Failed to delete project: ' + data.error, 'error');
+        }
+    } catch (error) {
+        console.error('Error deleting project:', error);
+        showNotification('❌ Error deleting project', 'error');
+    } finally {
+        showLoading(false);
+    }
+}
+
+// Delete project from list
+async function deleteProjectFromList(projectId, projectTitle) {
+    if (!confirm(`Are you sure you want to delete "${projectTitle}"? This action cannot be undone.`)) {
+        return;
+    }
+    
+    try {
+        showLoading(true, 'Deleting project...');
+        
+        const response = await fetch(`/api/projects/${projectId}`, {
+            method: 'DELETE'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showNotification('🗑️ Project deleted successfully', 'success');
+            
+            // Remove from current projects list
+            currentProjects = currentProjects.filter(p => p.id !== projectId);
+            displayProjects();
+            updateStats();
+        } else {
+            showNotification('❌ Failed to delete project: ' + data.error, 'error');
+        }
+    } catch (error) {
+        console.error('Error deleting project:', error);
+        showNotification('❌ Error deleting project', 'error');
+    } finally {
+        showLoading(false);
+    }
+}
+
+// Progress interface functions
+async function showProgressInterface(projectId) {
+    try {
+        const response = await fetch(`/api/projects/${projectId}`);
+        const data = await response.json();
+        
+            if (data.success) {
+            const project = data.project;
+            progressProjectTitle.textContent = project.title;
+            
+            // Set up progress tracking for this project
+            currentProgressProjectId = projectId;
+            
+            // Update expert mode indicator
+            const expertMode = localStorage.getItem('expertMode') === 'true';
+            const expertModeStatus = document.getElementById('expertModeStatus');
+            if (expertModeStatus) {
+                expertModeStatus.textContent = expertMode ? 'Enabled' : 'Disabled';
+                expertModeStatus.className = expertMode 
+                    ? 'text-sm font-medium text-green-600' 
+                    : 'text-sm font-medium text-gray-700';
+            }
+            
+            // Show progress interface
+            progressInterface.classList.remove('hidden');
+            
+            // Start monitoring progress
+            startProgressTracking(projectId);
+        } else {
+            showNotification('Failed to load project for progress tracking', 'error');
+        }
+    } catch (error) {
+        console.error('Error showing progress interface:', error);
+        showNotification('Error loading progress interface', 'error');
+    }
+}
+
+function hideProgressInterface() {
+    progressInterface.classList.add('hidden');
+    
+    // Clear progress tracking
+    if (progressInterval) {
+        clearInterval(progressInterval);
+        progressInterval = null;
+    }
+    currentProgressProjectId = null;
+}
+
+function startProgressTracking(projectId) {
+    // Update progress every 3 seconds
+    progressInterval = setInterval(async () => {
+        const shouldStop = await checkProgress(projectId);
+        if (shouldStop) {
+            clearInterval(progressInterval);
+            progressInterval = null;
+        }
+    }, 3000);
+    
+    // Initial progress update
+    checkProgress(projectId);
+}
+
+async function checkProgress(projectId) {
+    try {
+        const response = await fetch(`/api/projects/${projectId}/progress`);
+        const data = await response.json();
+        
+        if (data.success) {
+            updateProgressDisplay(data);
+            
+            // Return true if we should stop monitoring
+            return data.completed || data.status === 'failed';
+        }
+    } catch (error) {
+        console.error('Error checking progress:', error);
+    }
+    
+    return false;
+}
+
+function updateProgressDisplay(progressData) {
+    // Update status
+    progressProjectStatus.textContent = progressData.status;
+    
+    // Update progress bar
+    overallProgress.textContent = `${progressData.progress_percentage.toFixed(1)}%`;
+    mainProgressBar.style.width = `${progressData.progress_percentage}%`;
+    
+    // Update activity feed
+    if (progressData.recent_activities) {
+        activityFeed.innerHTML = progressData.recent_activities.map(activity => `
+            <div class="activity-item">
+                <div class="text-sm">${activity.message}</div>
+                <div class="text-xs text-gray-500">${new Date(activity.timestamp).toLocaleTimeString()}</div>
+            </div>
+        `).join('');
+    }
+    
+    // Update phase display
+    const phaseNames = {
+        'initializing': 'Initializing',
+        'planning': 'Planning',
+        'research': 'Research',
+        'writing': 'Writing',
+        'editing': 'Editing',
+        'completed': 'Completed',
+        'failed': 'Failed'
+    };
+    
+    progressProjectStatus.textContent = phaseNames[progressData.phase] || progressData.status;
+}
+
+// Download book
+async function downloadBook(projectId) {
+    try {
+        showLoading(true, 'Preparing download...');
+        
+        const response = await fetch(`/api/projects/${projectId}/download?download=true`);
+        const data = await response.json();
+        
+        if (data.success) {
+            // Create download link
+            const blob = new Blob([data.content], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `book_${projectId}.txt`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            showNotification('📚 Book downloaded successfully!', 'success');
+        } else {
+            showNotification('❌ Failed to download book: ' + data.error, 'error');
+        }
+    } catch (error) {
+        console.error('Error downloading book:', error);
+        showNotification('❌ Error downloading book', 'error');
+    } finally {
+        showLoading(false);
+    }
+}
+
+// Auto-refresh function
+function autoRefresh() {
+    if (currentProjects.length > 0) {
+        loadProjects();
+    }
+}
+
+// Utility functions
+function escapeHtml(unsafe) {
+    return unsafe
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
+
+function formatRelativeDate(dateString) {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffTime = Math.abs(now - date);
+    const diffMinutes = Math.floor(diffTime / (1000 * 60));
+    const diffHours = Math.floor(diffTime / (1000 * 60 * 60));
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    
+    if (diffMinutes < 1) {
+        return 'Just now';
+    } else if (diffMinutes < 60) {
+        return `${diffMinutes}m ago`;
+    } else if (diffHours < 24) {
+        return `${diffHours}h ago`;
+    } else if (diffDays < 7) {
+        return `${diffDays}d ago`;
+    } else {
+        return date.toLocaleDateString();
+    }
+}
+
+// Show/hide loading overlay
+// Show notification
+function showNotification(message, type = 'info', duration = 5000) {
+    const notification = document.createElement('div');
+    notification.className = `notification notification-${type} fixed top-4 right-4 p-4 rounded-lg shadow-lg z-50 max-w-md`;
+    
+    const icons = {
+        success: '✅',
+        error: '❌',
+        warning: '⚠️',
+        info: 'ℹ️'
+    };
+    
+    notification.innerHTML = `
+        <div class="flex items-center">
+            <span class="mr-2">${icons[type] || icons.info}</span>
+            <span>${message}</span>
+            <button onclick="this.parentElement.parentElement.remove()" class="ml-4 text-lg font-bold">×</button>
+        </div>
+    `;
+    
+    document.body.appendChild(notification);
+    
+    // Auto-remove after duration
+    setTimeout(() => {
+        if (notification.parentNode) {
+            notification.remove();
+        }
+    }, duration);
+}
+
+// Cleanup interval on page unload
+window.addEventListener('beforeunload', () => {
+    if (refreshInterval) {
+        clearInterval(refreshInterval);
+    }
+    if (progressInterval) {
+        clearInterval(progressInterval);
+    }
+});
+
+// Additional missing functions
+async function applyPreset(presetName) {
+    try {
+        const response = await fetch(`/api/llm/preset/${presetName}`, {
+            method: 'POST'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            // Update form fields with preset values
+            if (data.config.model) llmModel.value = data.config.model;
+            if (data.config.base_url) llmBaseUrl.value = data.config.base_url;
+            if (data.config.temperature) llmTemperature.value = data.config.temperature;
+            if (data.config.max_tokens) llmMaxTokens.value = data.config.max_tokens;
+            
+            showNotification(`Applied preset: ${presetName}`, 'success');
+        } else {
+            showNotification('Failed to apply preset: ' + data.error, 'error');
+        }
+    } catch (error) {
+        console.error('Error applying preset:', error);
+        showNotification('Error applying preset', 'error');
+    }
+}
+
+// Event listeners for settings page elements
+document.addEventListener('DOMContentLoaded', function() {
+    // Add event listeners for settings buttons
+    const testConnectionBtn = document.getElementById('testConnectionBtn');
+    const saveLLMBtn = document.getElementById('saveLLMBtn');
+    const saveWritingBtn = document.getElementById('saveWritingBtn');
+    const saveSettingsBtn = document.getElementById('saveSettingsBtn');
+    const clearProjectsBtn = document.getElementById('clearProjectsBtn');
+    const resetSettingsBtn = document.getElementById('resetSettingsBtn');
+    const llmTemperature = document.getElementById('llmTemperature');
+    const temperatureValue = document.getElementById('temperatureValue');
+    
+    if (testConnectionBtn) {
+        testConnectionBtn.addEventListener('click', testLLMConnection);
+    }
+    
+    if (saveLLMBtn) {
+        saveLLMBtn.addEventListener('click', saveLLMSettings);
+    }
+    
+    if (saveWritingBtn) {
+        saveWritingBtn.addEventListener('click', saveWritingSettings);
+    }
+    
+    if (saveSettingsBtn) {
+        saveSettingsBtn.addEventListener('click', saveAllSettings);
+    }
+    
+    if (clearProjectsBtn) {
+        clearProjectsBtn.addEventListener('click', clearAllProjects);
+    }
+    
+    if (resetSettingsBtn) {
+        resetSettingsBtn.addEventListener('click', resetAllSettings);
+    }
+    
+    if (llmTemperature && temperatureValue) {
+        llmTemperature.addEventListener('input', function() {
+            temperatureValue.textContent = this.value;
+        });
+    }
+});
+
+async function clearAllProjects() {
+    if (!confirm('Are you sure you want to delete ALL projects? This action cannot be undone.')) {
+        return;
+    }
+    
+    try {
+        showLoading(true, 'Clearing all projects...');
+        
+        // Delete each project
+        const deletePromises = currentProjects.map(project => 
+            fetch(`/api/projects/${project.id}`, { method: 'DELETE' })
+        );
+        
+        await Promise.all(deletePromises);
+        
+        // Clear local list
+        currentProjects = [];
+        displayProjects();
+        updateStats();
+        
+        showNotification('All projects cleared successfully', 'success');
+    } catch (error) {
+        console.error('Error clearing projects:', error);
+        showNotification('Error clearing projects', 'error');
+    } finally {
+        showLoading(false);
+    }
+}
+
+async function resetAllSettings() {
+    if (!confirm('Are you sure you want to reset all settings to default? This action cannot be undone.')) {
+        return;
+    }
+    
+    try {
+        // Clear localStorage settings
+        const keysToRemove = [];
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key.startsWith('llm_') || key.startsWith('writing_') || key.startsWith('app_')) {
+                keysToRemove.push(key);
+            }
+        }
+        
+        keysToRemove.forEach(key => localStorage.removeItem(key));
+        
+        // Reset form fields to defaults
+        if (llmModel) llmModel.value = 'gpt-4o';
+        if (llmApiKey) llmApiKey.value = '';
+        if (llmBaseUrl) llmBaseUrl.value = '';
+        if (llmTemperature) llmTemperature.value = '0.7';
+        if (llmMaxTokens) llmMaxTokens.value = '4096';
+        if (temperatureValue) temperatureValue.textContent = '0.7';
+        
+        showNotification('All settings reset to defaults', 'success');
+    } catch (error) {
+        console.error('Error resetting settings:', error);
+        showNotification('Error resetting settings', 'error');
+    }
+}
+
+// Settings management functions
+async function checkLLMStatus() {
+    try {
+        const response = await fetch('/api/llm/config');
+        const data = await response.json();
+        
+        if (data.success) {
+            // Update UI with current config
+            llmModel.value = data.config.model;
+            llmTemperature.value = data.config.temperature;
+            llmMaxTokens.value = data.config.max_tokens;
+            
+            // Show connection status
+            connectionStatus.innerHTML = '<span class="text-green-600">✅ Connected</span>';
+        }
+    } catch (error) {
+        console.error('Error checking LLM status:', error);
+        connectionStatus.innerHTML = '<span class="text-red-600">❌ Disconnected</span>';
+    }
+}
+
+function showSettingsPage() {
+    // This would show a settings interface
+    // For now, just show a notification
+    showNotification('Settings page functionality not implemented yet', 'info');
+}
+
+async function testLLMConnection() {
+    try {
+        testConnectionBtn.disabled = true;
+        testConnectionBtn.innerHTML = '<span class="mr-2">⏳</span>Testing...';
+        
+        const response = await fetch('/api/llm/test', {
+            method: 'POST'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showNotification('✅ LLM connection successful!', 'success');
+            connectionStatus.innerHTML = '<span class="text-green-600">✅ Connected</span>';
+        } else {
+            showNotification('❌ Connection failed: ' + data.error, 'error');
+            connectionStatus.innerHTML = '<span class="text-red-600">❌ Failed</span>';
+        }
+    } catch (error) {
+        console.error('Error testing LLM connection:', error);
+        showNotification('❌ Error testing connection', 'error');
+        connectionStatus.innerHTML = '<span class="text-red-600">❌ Error</span>';
+    } finally {
+        testConnectionBtn.disabled = false;
+        testConnectionBtn.innerHTML = '<span class="mr-2">🔗</span>Test Connection';
+    }
+}
+
+async function saveLLMSettings() {
+    const config = {
+        model: llmModel.value,
+        api_key: llmApiKey.value,
+        base_url: llmBaseUrl.value,
+        temperature: parseFloat(llmTemperature.value),
+        max_tokens: parseInt(llmMaxTokens.value)
+    };
+    
+    try {
+        saveLLMBtn.disabled = true;
+        saveLLMBtn.innerHTML = '<span class="mr-2">⏳</span>Saving...';
+        
+        const response = await fetch('/api/llm/config', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(config)
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showNotification('✅ LLM configuration saved successfully!', 'success');
+            checkLLMStatus(); // Update status display
+        } else {
+            showNotification('❌ Failed to save LLM configuration: ' + data.error, 'error');
+        }
+    } catch (error) {
+        console.error('Error saving LLM settings:', error);
+        showNotification('❌ Error saving LLM configuration', 'error');
+    } finally {
+        saveLLMBtn.disabled = false;
+        saveLLMBtn.innerHTML = '<span class="mr-2">💾</span>Save Configuration';
+    }
+}
+
+async function saveWritingSettings() {
+    const settings = {
+        defaultTargetLength: document.getElementById('defaultTargetLength').value,
+        defaultGenre: document.getElementById('defaultGenre').value,
+        maxIterations: document.getElementById('maxIterations').value,
+        autoDownload: document.getElementById('autoDownload').checked,
+        enableResearch: document.getElementById('enableResearch').checked,
+        expertMode: document.getElementById('expertMode').checked
+    };
+    
+    try {
+        const response = await fetch('/api/settings', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(settings)
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showNotification('Writing settings saved successfully', 'success');
+            
+            // Save to localStorage for persistence
+            localStorage.setItem('defaultTargetLength', settings.defaultTargetLength);
+            localStorage.setItem('defaultGenre', settings.defaultGenre);
+            localStorage.setItem('maxIterations', settings.maxIterations);
+            localStorage.setItem('autoDownload', settings.autoDownload.toString());
+            localStorage.setItem('enableResearch', settings.enableResearch.toString());
+            localStorage.setItem('expertMode', settings.expertMode.toString());
+        } else {
+            showNotification('Failed to save writing settings: ' + data.error, 'error');
+        }
+    } catch (error) {
+        console.error('Error saving writing settings:', error);
+        showNotification('Failed to save writing settings', 'error');
+    }
+}
+
+async function saveAllSettings() {
+    // Save application settings
+    const settings = {
+        autoRefreshInterval: document.getElementById('autoRefreshInterval').value,
+        notificationsEnabled: document.getElementById('notificationsEnabled').checked,
+        soundEnabled: document.getElementById('soundEnabled').checked
+    };
+    
+    try {
+        const response = await fetch('/api/settings', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(settings)
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showNotification('All settings saved successfully', 'success');
+        } else {
+            showNotification('Failed to save settings: ' + data.error, 'error');
+        }
+    } catch (error) {
+        console.error('Error saving settings:', error);
+        showNotification('Failed to save settings', 'error');
+    }
+}
+
+// Load history section
+async function loadHistorySection() {
+    try {
+        const response = await fetch(`/api/projects/${currentProject.id}/history`);
+        const data = await response.json();
+        
+        const historyList = document.getElementById('historyList');
+        
+        if (data.success && data.history.length > 0) {
+            historyList.innerHTML = data.history.map(item => `
+                <div class="flex items-start space-x-3 p-3 bg-gray-50 rounded-lg">
+                    <div class="w-2 h-2 bg-blue-600 rounded-full mt-2"></div>
+                    <div class="flex-1">
+                        <div class="flex items-center justify-between">
+                            <div class="font-medium text-gray-900 text-sm">${item.action}</div>
+                            <div class="text-xs text-gray-500">${formatRelativeDate(item.timestamp)}</div>
+                        </div>
+                        ${item.details ? `<div class="text-xs text-gray-600 mt-1">${item.details}</div>` : ''}
+                    </div>
+                </div>
+            `).join('');
+        } else {
+            historyList.innerHTML = `
+                <div class="text-center text-gray-500 py-4">
+                    <p class="text-sm">No execution history available</p>
+                </div>
+            `;
+        }
+    } catch (error) {
+        console.error('Error loading documents:', error);
+        document.getElementById('documentsList').innerHTML = `
+            <div class="text-center text-red-500 py-4">
+                <p class="text-sm">Failed to load documents</p>
+            </div>
+        `;
+    }
+}
+
+async function loadDocumentsSection() {
+    if (!currentProject) return;
+    try {
+        const response = await fetch(`/api/projects/${currentProject.id}/documents`);
+        const data = await response.json();
+        const documentsList = document.getElementById('documentsList');
+
+        if (data.success && data.documents.length > 0) {
+            documentsList.innerHTML = data.documents.map(doc => `
+                <div class="border border-gray-200 rounded-lg p-4 bg-white/70">
+                    <div class="flex items-start space-x-3">
+                        <div class="w-2 h-2 bg-blue-600 rounded-full mt-2"></div>
+                        <div class="flex-1">
+                            <div class="flex items-center justify-between">
+                                <div class="font-medium text-gray-900 text-sm">${doc.title}</div>
+                                <div class="text-xs text-gray-500">${formatRelativeDate(doc.updated_at)}</div>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-600">Type:</span>
+                                <span class="font-medium">${doc.type}</span>
+                            </div>
+                            <div class="flex space-x-3">
+                                <button class="text-blue-600 hover:text-blue-800 text-sm font-medium" onclick="viewDocument('${doc.relative_path}', '${doc.title}')">Open</button>
+                                <button class="text-gray-600 hover:text-gray-800 text-sm" onclick="downloadDocument('${doc.relative_path}')">Download</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        } else {
+            documentsList.innerHTML = `
+                <div class="text-center text-gray-500 py-4">
+                    <p class="text-sm">No planning documents available yet.</p>
+                </div>
+            `;
+        }
+    } catch (error) {
+        console.error('Error loading documents:', error);
+        document.getElementById('documentsList').innerHTML = `
+            <div class="text-center text-red-500 py-4">
+                <p class="text-sm">Failed to load documents</p>
+            </div>
+        `;
+    }
+}
+
+// Load statistics section
+async function loadStatsSection() {
+    try {
+        const response = await fetch(`/api/projects/${currentProject.id}/statistics`);
+        const data = await response.json();
+        
+        const statsList = document.getElementById('statsList');
+        
+        if (data.success) {
+            const stats = data.statistics;
+            statsList.innerHTML = `
+                <div class="space-y-4">
+                    <div class="bg-gray-50 p-4 rounded-lg">
+                        <h5 class="font-medium text-gray-900 mb-2">Writing Progress</h5>
+                        <div class="space-y-2 text-sm">
+                            <div class="flex justify-between">
+                                <span class="text-gray-600">Average Words per Chapter:</span>
+                                <span class="font-medium">${stats.avg_words_per_chapter || 0}</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-600">Writing Sessions:</span>
+                                <span class="font-medium">${stats.total_sessions || 0}</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-600">Total Writing Time:</span>
+                                <span class="font-medium">${stats.total_writing_time || '0 minutes'}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="bg-gray-50 p-4 rounded-lg">
+                        <h5 class="font-medium text-gray-900 mb-2">Project Metrics</h5>
+                        <div class="space-y-2 text-sm">
+                            <div class="flex justify-between">
+                                <span class="text-gray-600">Completion Rate:</span>
+                                <span class="font-medium">${stats.completion_rate || 0}%</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-600">Estimated Completion:</span>
+                                <span class="font-medium">${stats.estimated_completion || 'Unknown'}</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-600">Files Generated:</span>
+                                <span class="font-medium">${stats.total_files || 0}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        } else {
+            statsList.innerHTML = `
+                <div class="text-center text-gray-500 py-4">
+                    <p class="text-sm">No statistics available</p>
+                </div>
+            `;
+        }
+    } catch (error) {
+        console.error('Error loading statistics:', error);
+        document.getElementById('statsList').innerHTML = `
+            <div class="text-center text-red-500 py-4">
+                <p class="text-sm">Failed to load statistics</p>
+            </div>
+        `;
+    }
+}
+
+// View chapter content
+async function viewChapter(filePath) {
+    try {
+        const response = await fetch(`/api/files/content?path=${encodeURIComponent(filePath)}`);
+        const data = await response.json();
+        
+        if (data.success) {
+            openMarkdownModal('Chapter Content', data.content);
+        } else {
+            showNotification('Failed to load chapter content', 'error');
+        }
+    } catch (error) {
+        console.error('Error viewing chapter:', error);
+        showNotification('Error loading chapter content', 'error');
+    }
+}
+
+async function viewDocument(relativePath, title) {
+    try {
+        const filePath = `projects/${currentProject.id}/${relativePath}`;
+        const response = await fetch(`/api/files/content?path=${encodeURIComponent(filePath)}`);
+        const data = await response.json();
+        if (data.success) {
+            openMarkdownModal(title, data.content);
+        } else {
+            showNotification('Failed to load document', 'error');
+        }
+    } catch (error) {
+        console.error('Error viewing document:', error);
+        showNotification('Error loading document', 'error');
+    }
+}
+
+function downloadDocument(relativePath) {
+    const fileUrl = `/api/files/content?path=${encodeURIComponent(`projects/${currentProject.id}/${relativePath}`)}`;
+    window.open(fileUrl, '_blank');
+}
+
+function openMarkdownModal(title, content) {
+    const modal = document.createElement('div');
+    modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4';
+    const htmlContent = marked.parse(content || '');
+    modal.innerHTML = `
+        <div class="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[85vh] overflow-y-auto">
+            <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+                <h3 class="text-lg font-semibold text-gray-900">${title}</h3>
+                <button onclick="this.closest('.fixed').remove()" class="text-gray-500 hover:text-gray-700">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+            <div class="px-6 py-4 bg-gray-50 text-sm text-gray-600 border-b border-gray-200">
+                Markdown preview
+            </div>
+            <div class="px-6 py-6 prose max-w-none markdown-preview">
+                ${htmlContent}
+            </div>
+        </div>
+    `;
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+            modal.remove();
+        }
+    });
+    document.body.appendChild(modal);
+}
+
+// Format relative date
+function formatRelativeDate(dateString) {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffTime = Math.abs(now - date);
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    
+    if (diffDays === 0) {
+        return 'Today';
+    } else if (diffDays === 1) {
+        return 'Yesterday';
+    } else if (diffDays < 7) {
+        return `${diffDays} days ago`;
+    } else {
+        return date.toLocaleDateString();
+    }
+}
+
+// Check if project has active background task
+async function checkProjectTaskStatus(projectId) {
+    try {
+        const response = await fetch(`/api/projects/${projectId}/progress`);
+        const data = await response.json();
+        
+        if (data.success && (data.status === 'pending' || data.status === 'running')) {
+            return { hasActiveTask: true, taskData: data };
+        }
+        return { hasActiveTask: false, taskData: null };
+    } catch (error) {
+        return { hasActiveTask: false, taskData: null };
+    }
+}
+
+// Delete project from list (quick delete)
+async function deleteProjectFromList(projectId, projectTitle) {
+    // Show confirmation dialog
+    const confirmed = confirm(
+        `⚠️ Delete "${projectTitle}"?\n\n` +
+        `This will permanently delete all project data, chapters, and content.\n\n` +
+        `This action cannot be undone.`
+    );
+    
+    if (!confirmed) return;
+    
+    try {
+        showLoading(true, 'Deleting project...');
+        
+        const response = await fetch(`/api/projects/${projectId}`, {
+            method: 'DELETE'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showNotification('✅ Project deleted successfully', 'success');
+            
+            // Reload projects list
+            await loadProjects();
+            
+            // If we're in the progress interface and this was the current project, close it
+            if (currentProgressProjectId === projectId) {
+                closeProgressInterface();
+            }
+            
+        } else {
+            showNotification('❌ Failed to delete project: ' + data.error, 'error');
+        }
+    } catch (error) {
+        console.error('Error deleting project:', error);
+        showNotification('❌ Error deleting project', 'error');
+    } finally {
+        showLoading(false);
+    }
+}
+
+// Delete project
+async function deleteProject(projectId) {
+    // Show confirmation dialog
+    const confirmed = confirm(
+        `⚠️ Are you sure you want to delete this project?\n\n` +
+        `This will permanently delete:\n` +
+        `• All project data and settings\n` +
+        `• All generated chapters and content\n` +
+        `• Project history and statistics\n\n` +
+        `This action cannot be undone.`
+    );
+    
+    if (!confirmed) return;
+    
+    // Double confirmation for safety
+    const doubleConfirmed = confirm(
+        `🚨 FINAL WARNING: This will delete everything!\n\n` +
+        `Type 'OK' to confirm deletion, or cancel to keep your project.`
+    );
+    
+    if (!doubleConfirmed) return;
+    
+    try {
+        showLoading(true, 'Deleting project...');
+        
+        const response = await fetch(`/api/projects/${projectId}`, {
+            method: 'DELETE'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showNotification('✅ Project deleted successfully', 'success');
+            
+            // Close the project details modal
+            hideProjectDetailsModal();
+            
+            // Reload projects list
+            await loadProjects();
+            
+            // If we're in the progress interface and this was the current project, close it
+            if (currentProgressProjectId === projectId) {
+                closeProgressInterface();
+            }
+            
+        } else {
+            showNotification('❌ Failed to delete project: ' + data.error, 'error');
+        }
+    } catch (error) {
+        console.error('Error deleting project:', error);
+        showNotification('❌ Error deleting project', 'error');
+    } finally {
+        showLoading(false);
+    }
+}
+
+// Stop writing process
+async function stopWriting(projectId) {
+    if (!confirm('Are you sure you want to stop the writing process? This will halt the AI agent and any progress will be saved.')) {
+        return;
+    }
+    
+    try {
+        showLoading(true, 'Stopping writing process...');
+        
+        const response = await fetch(`/api/projects/${projectId}/stop`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showNotification('✅ Writing process stopped successfully', 'success');
+            
+            // Update current project status
+            if (currentProject && currentProject.id === projectId) {
+                currentProject.status = 'stopped';
+                await displayProjectDetails();
+            }
+            
+            // Reload projects list to update status
+            await loadProjects();
+            
+        } else {
+            showNotification('❌ Failed to stop writing: ' + data.error, 'error');
+        }
+    } catch (error) {
+        console.error('Error stopping writing:', error);
+        showNotification('❌ Error stopping writing process', 'error');
+    } finally {
+        showLoading(false);
+    }
+}
+
+// Start writing process
+async function startWriting(projectId) {
+    try {
+        showLoading(true, 'Starting AI writing process...');
+        showNotification('🤖 Initializing AI writing process...', 'info');
+        
+        const response = await fetch(`/api/projects/${projectId}/start`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showNotification('✅ Writing process started successfully!', 'success');
+            await loadProjects();
+            setTimeout(() => {
+                viewProject(projectId);
+                showProgressInterface(projectId);
+            }, 1000);
+        } else {
+            showNotification('❌ Failed to start writing: ' + data.error, 'error');
+        }
+    } catch (error) {
+        console.error('Error starting writing:', error);
+        showNotification('❌ Error starting writing process', 'error');
+    } finally {
+        showLoading(false);
+    }
+}
+
+// Show progress interface
+async function showProgressInterface(projectId) {
+    progressInterface.classList.remove('hidden');
+    currentProgressProjectId = projectId;
+    
+    // Load project details
+    await loadProjectForProgress(projectId);
+    
+    // Load all projects for sidebar
+    await loadProjectsForSidebar();
+    
+    // Start progress tracking
+    startProgressTracking(projectId);
+}
+
+// Close progress interface
+function closeProgressInterface() {
+    progressInterface.classList.add('hidden');
+    
+    // Clear progress tracking
+    if (progressInterval) {
+        clearInterval(progressInterval);
+        progressInterval = null;
+    }
+    
+    currentProgressProjectId = null;
+}
+
+// Load project for progress view
+async function loadProjectForProgress(projectId) {
+    try {
+        const response = await fetch(`/api/projects/${projectId}`);
+        const data = await response.json();
+        
+        if (data.success) {
+            const project = data.project;
+            progressProjectTitle.textContent = project.title;
+            progressProjectStatus.textContent = `Status: ${project.status}`;
+        }
+    } catch (error) {
+        console.error('Error loading project for progress:', error);
+    }
+}
+
+// Load projects for sidebar
+async function loadProjectsForSidebar() {
+    try {
+        const response = await fetch('/api/projects');
+        const data = await response.json();
+        
+        if (data.success) {
+            const projects = data.projects;
+            projectSidebar.innerHTML = projects.map(project => `
+                <div class="p-3 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors ${
+                    project.id === currentProgressProjectId ? 'bg-gray-100 border-l-4 border-black' : ''
+                }" onclick="switchProject('${project.id}')">
+                    <div class="font-medium text-gray-900 text-sm">${project.title}</div>
+                    <div class="text-xs text-gray-500">${project.genre} • ${project.status}</div>
+                    <div class="text-xs text-gray-400 mt-1">${project.total_words || 0} words</div>
+                </div>
+            `).join('');
+        }
+    } catch (error) {
+        console.error('Error loading projects for sidebar:', error);
+    }
+}
+
+// Switch to different project
+async function switchProject(projectId) {
+    if (projectId === currentProgressProjectId) return;
+    
+    // Clear existing progress tracking
+    if (progressInterval) {
+        clearInterval(progressInterval);
+    }
+    
+    currentProgressProjectId = projectId;
+    await loadProjectForProgress(projectId);
+    await loadProjectsForSidebar();
+    startProgressTracking(projectId);
+}
+
+// Send command to agent
+async function sendCommand() {
+    if (!commandInput || !commandSendButton || !currentProgressProjectId) return;
+    const command = commandInput.value.trim();
+    if (!command) return;
+    
+    addActivityCard('user', command, new Date().toISOString());
+    commandInput.value = '';
+    setCommandInputLoading(true, isChatMode ? 'AI is thinking...' : 'Processing...');
+    
+    try {
+        if (isChatMode) {
+            // Check if expert mode is enabled
+            const expertMode = localStorage.getItem('expertMode') === 'true';
+            
+            if (expertMode) {
+                // Stream response in expert mode
+                try {
+                    const response = await fetch(`/api/projects/${currentProgressProjectId}/chat`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ message: command, expert_mode: true })
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    
+                    const reader = response.body.getReader();
+                    let accumulatedContent = '';
+                    
+                    while (true) {
+                        const { done, value } = await reader.read();
+                        if (done) break;
+                        
+                        const text = new TextDecoder().decode(value);
+                        const lines = text.split('\n');
+                        
+                    let agentCardId = null;
+                    
+                    for (let line of lines) {
+                            if (line.startsWith('data: ')) {
+                                const data = JSON.parse(line.replace('data: ', ''));
+                                
+                                if (data.type === 'content') {
+                                    accumulatedContent += data.data;
+                                    // Update the agent activity card with streaming content
+                                    if (agentCardId) {
+                                        addActivityCard('agent', accumulatedContent, new Date().toISOString(), { update: true, cardId: agentCardId });
+                                    } else {
+                                        agentCardId = addActivityCard('agent', accumulatedContent, new Date().toISOString());
+                                    }
+                                } else if (data.type === 'tool_call') {
+                                    addActivityCard('tool', `[Tool Call] ${data.data.function.name}`, new Date().toISOString());
+                                } else if (data.type === 'tool_result') {
+                                    const resultText = data.data.success 
+                                        ? `[Success] ${data.data.tool_name}: ${data.data.result?.message || 'Completed'}` 
+                                        : `[Error] ${data.data.tool_name}: ${data.data.error}`;
+                                    addActivityCard('tool', resultText, new Date().toISOString());
+                                } else if (data.type === 'error') {
+                                    addActivityCard('error', data.data, new Date().toISOString());
+                                }
+                            }
+                        }
+                    }
+                } catch (streamError) {
+                    console.error('Streaming error:', streamError);
+                    addActivityCard('error', 'Streaming error: ' + streamError.message, new Date().toISOString());
+                }
+            } else {
+                // Regular non-streaming response
+                const response = await fetch(`/api/projects/${currentProgressProjectId}/chat`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: command })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    addActivityCard('agent', data.response || 'No response provided.', new Date().toISOString());
+                    if (Array.isArray(data.tool_calls) && data.tool_calls.length) {
+                        data.tool_calls.forEach(toolCall => {
+                            const toolName = toolCall.tool || 'Tool';
+                            const resultSummary = toolCall.result?.message || JSON.stringify(toolCall.result, null, 2);
+                            addActivityCard('tool', `${toolName} executed\n${resultSummary}`, new Date().toISOString());
+                        });
+                    }
+                } else {
+                    addActivityCard('error', data.error || 'Chat request failed', new Date().toISOString());
+                }
+            }
+        } else {
+            addActivityCard('system', `Command received: "${command}"`, new Date().toISOString());
+            if (command.toLowerCase() === 'status') {
+                const response = await fetch(`/api/projects/${currentProgressProjectId}/progress`);
+                const data = await response.json();
+                if (data.success) {
+                    addActivityCard('agent', `Current status: ${data.phase} (${data.progress_percentage.toFixed(1)}%)`, new Date().toISOString());
+                }
+            }
+        }
+    } catch (error) {
+        addActivityCard('error', `Failed to send command: ${error.message}`, new Date().toISOString());
+    } finally {
+        setCommandInputLoading(false);
+    }
+}
+
+// Add activity card to feed
+function addActivityCard(type, message, timestamp, options = {}) {
+    const { update = false, cardId = null } = options;
+    
+    const card = update && cardId ? document.querySelector(`[data-card-id="${cardId}"]`) : document.createElement('div');
+    if (!update) {
+        card.className = 'bg-white border border-gray-200 rounded-lg p-4 shadow-sm';
+        card.dataset.type = type;
+        card.dataset.cardId = cardId || Date.now().toString();
+    }
+    
+    let icon = '';
+    let iconColor = '';
+    let title = '';
+    
+    switch (type) {
+        case 'agent':
+            icon = '🤖';
+            iconColor = 'text-blue-600';
+            title = 'AI Agent';
+            break;
+        case 'system':
+            icon = '⚙️';
+            iconColor = 'text-gray-600';
+            title = 'System';
+            break;
+        case 'user':
+            icon = '👤';
+            iconColor = 'text-green-600';
+            title = 'You';
+            break;
+        case 'error':
+            icon = '❌';
+            iconColor = 'text-red-600';
+            title = 'Error';
+            break;
+        case 'tool':
+            icon = '🛠️';
+            iconColor = 'text-purple-600';
+            title = 'Tool Call';
+            break;
+        default:
+            icon = '📝';
+            iconColor = 'text-gray-600';
+            title = 'Activity';
+    }
+    
+    card.innerHTML = `
+        <div class="flex items-start space-x-3">
+            <div class="${iconColor} text-xl">${icon}</div>
+            <div class="flex-1">
+                <div class="flex items-center justify-between mb-1">
+                    <span class="font-medium text-gray-900 text-sm">${title}</span>
+                    <span class="text-xs text-gray-500">${new Date(timestamp).toLocaleTimeString()}</span>
+                </div>
+                <p class="activity-content text-gray-700 text-sm">${message}</p>
+            </div>
+        </div>
+    `;
+    
+    if (!update) {
+        activityFeed.appendChild(card);
+    }
+    activityFeed.scrollTop = activityFeed.scrollHeight;
+    
+    return card.dataset.cardId;
+}
+
+// Start progress tracking
+async function startProgressTracking(projectId) {
+    // Clear activity feed initially
+    setActivityLoadingCard('Starting progress tracking...', 'Initializing agent loop');
+    
+    // Initial progress check
+    await checkProgress(projectId);
+    
+    // Continue periodic checks
+    progressInterval = setInterval(async () => {
+        const shouldStop = await checkProgress(projectId);
+        if (shouldStop) {
+            clearInterval(progressInterval);
+            progressInterval = null;
+            addActivityCard('system', 'Book writing completed! 🎉', new Date().toISOString());
+        }
+    }, 3000); // Check every 3 seconds
+}
+
+// Check progress
+async function checkProgress(projectId) {
+    try {
+        const response = await fetch(`/api/projects/${projectId}/progress`);
+        const data = await response.json();
+        
+        if (data.success) {
+            updateProgressDisplay(data);
+            
+            // Return true if writing is complete
+            return data.completed || data.phase === 'completed';
+        }
+    } catch (error) {
+        console.error('Error checking progress:', error);
+        addActivityCard('error', 'Failed to check progress', new Date().toISOString());
+    }
+    return false;
+}
+
+// Update progress display
+function updateProgressDisplay(data) {
+    const progress = data;
+    const percentage = Math.min(100, progress.progress_percentage || 0);
+    
+    // Update overall progress
+    mainProgressBar.style.width = `${percentage}%`;
+    overallProgress.textContent = `${percentage.toFixed(1)}%`;
+    
+    // Update project status
+    let statusText = `Phase: ${progress.current_phase || 'Unknown'}`;
+    if (progress.status === 'cancelled') {
+        statusText = 'Status: Stopped';
+    } else if (progress.status === 'failed') {
+        statusText = 'Status: Failed';
+    }
+    progressProjectStatus.textContent = statusText;
+    
+    // Update phase indicators in sidebar
+    updatePhaseIndicators(progress.current_phase, progress.phase_order);
+    
+    // Add activity log entries as cards
+    const terminalStatuses = ['completed', 'failed', 'cancelled'];
+    let phaseMessage = '';
+    switch (progress.phase) {
+        case 'planning':
+            phaseMessage = '📋 Planning - Creating outline and structure...';
+            break;
+        case 'research':
+            phaseMessage = '🔍 Research - Gathering background information...';
+            break;
+        case 'writing':
+            phaseMessage = '📝 Writing - Autonomously writing chapters...';
+            break;
+        case 'editing':
+            phaseMessage = '✏️ Editing - Reviewing and refining content...';
+            break;
+        case 'completed':
+            phaseMessage = '✅ Complete - Book writing finished!';
+            break;
+        default:
+            phaseMessage = `⏳ ${progress.phase}`;
+    }
+    
+    if (!terminalStatuses.includes(progress.status)) {
+        setActivityLoadingCard(phaseMessage, `${percentage.toFixed(1)}% complete`);
+    } else {
+        clearActivityLoadingCard();
+        addActivityCard('agent', phaseMessage, new Date().toISOString());
+    }
+    
+    // Add stop button to interface if running
+    updateInterfaceControls(progress.status);
+}
+
+// Update interface controls based on status
+function updateInterfaceControls(status) {
+    if (!commandInput || !commandSendButton) return;
+    const chatReadyStatuses = ['completed', 'failed'];
+    
+    if (chatReadyStatuses.includes(status)) {
+        setChatMode(true, status);
+        removeStopButtonFromInterface();
+        return;
+    }
+    
+    setChatMode(false);
+    
+    if (status === 'cancelled') {
+        commandInput.disabled = true;
+        commandInput.placeholder = 'Writing process has been stopped';
+        commandSendButton.disabled = true;
+        commandSendButton.classList.add('opacity-50', 'cursor-not-allowed');
+        addStopButtonToInterface();
+    } else {
+        commandInput.disabled = false;
+        commandInput.placeholder = 'Send commands to the AI agent (e.g., \'pause\', \'resume\', \'status\')...';
+        commandSendButton.disabled = false;
+        commandSendButton.classList.remove('opacity-50', 'cursor-not-allowed');
+        addStopButtonToInterface();
+    }
+}
+
+function setChatMode(enabled, status) {
+    isChatMode = enabled;
+    if (!commandInput || !commandSendButton) return;
+    const buttonLabel = commandSendButton.querySelector('span');
+    
+    if (enabled) {
+        commandInput.disabled = false;
+        commandSendButton.disabled = false;
+        commandInput.placeholder = status === 'completed'
+            ? 'Book completed! Ask the AI follow-up questions...'
+            : 'Something went wrong. Ask the AI for help or revisions...';
+        commandSendButton.classList.remove('opacity-50', 'cursor-not-allowed');
+        if (buttonLabel) buttonLabel.textContent = 'Ask';
+    } else {
+        if (buttonLabel) buttonLabel.textContent = 'Send';
+    }
+}
+
+function setCommandInputLoading(isLoading, placeholderText) {
+    if (!commandInput || !commandSendButton) return;
+    commandInput.disabled = isLoading;
+    commandSendButton.disabled = isLoading;
+    if (placeholderText && isLoading) {
+        commandInput.placeholder = placeholderText;
+    }
+    if (isLoading) {
+        commandSendButton.classList.add('opacity-50', 'cursor-not-allowed');
+    } else if (!isChatMode || (isChatMode && commandInput.placeholder)) {
+        commandSendButton.classList.remove('opacity-50', 'cursor-not-allowed');
+        if (isChatMode) {
+            commandInput.placeholder = 'Chat with the AI about your book...';
+        }
+    }
+}
+
+// Add stop button to interface header
+function addStopButtonToInterface() {
+    const header = document.querySelector('#progressInterface .bg-white.border-b');
+    if (!header) return;
+    
+    // Remove existing stop button if present
+    removeStopButtonFromInterface();
+    
+    // Check if we should show stop button (only for running tasks)
+    const currentStatus = progressProjectStatus.textContent;
+    if (currentStatus.includes('Status: Stopped') || currentStatus.includes('Status: Failed') || currentStatus.includes('Status: Completed')) {
+        return;
+    }
+    
+    // Create stop button
+    const stopButton = document.createElement('button');
+    stopButton.id = 'progressStopButton';
+    stopButton.className = 'btn btn-secondary px-4 py-2 border-red-300 text-red-700 hover:bg-red-50 text-sm';
+    stopButton.innerHTML = '<span class="mr-2">⏹️</span>Stop Writing';
+    stopButton.onclick = () => stopWriting(currentProgressProjectId);
+    
+    // Add to header
+    const buttonContainer = header.querySelector('.flex.items-center.justify-between > div:last-child');
+    if (buttonContainer) {
+        buttonContainer.appendChild(stopButton);
+    }
+}
+
+// Remove stop button from interface
+function removeStopButtonFromInterface() {
+    const stopButton = document.getElementById('progressStopButton');
+    if (stopButton) {
+        stopButton.remove();
+    }
+}
+
+// Update phase indicators in sidebar
+function updatePhaseIndicators(currentPhase, phaseOrder) {
+    const phases = ['planning', 'research', 'writing', 'editing'];
+    
+    phases.forEach((phase, index) => {
+        const element = document.getElementById(`phase${phase.charAt(0).toUpperCase() + phase.slice(1)}`);
+        if (element) {
+            if (phaseOrder && phaseOrder > index + 1) {
+                element.textContent = 'Completed';
+                element.className = 'text-green-600';
+            } else if (phase === currentPhase) {
+                element.textContent = 'In Progress';
+                element.className = 'text-blue-600';
+            } else {
+                element.textContent = 'Pending';
+                element.className = 'text-gray-500';
+            }
+        }
+    });
+}
+
+// Check LLM status
+async function checkLLMStatus() {
+    try {
+        const response = await fetch('/api/llm/config');
+        const data = await response.json();
+        
+        if (data.success) {
+            const statusElement = document.getElementById('llmStatus');
+            statusElement.innerHTML = `
+                <span class="inline-block w-2 h-2 bg-green-500 rounded-full mr-2"></span>
+                ${data.config.provider}: ${data.config.model}
+            `;
+        }
+    } catch (error) {
+        console.error('Error checking LLM status:', error);
+    }
+}
+
+// Auto-refresh for active projects
+async function autoRefresh() {
+    const activeProjects = currentProjects.filter(p => 
+        ['planning', 'research', 'writing', 'editing'].includes(p.status)
+    );
+    
+    if (activeProjects.length > 0) {
+        await loadProjects();
+        
+        // If we're viewing a project that's currently active, refresh its details
+        if (currentProject && ['writing', 'research', 'editing'].includes(currentProject.status)) {
+            await viewProject(currentProject.id);
+        }
+    }
+}
+
+// Download book
+function downloadBook(projectId) {
+    const project = currentProjects.find(p => p.id === projectId);
+    if (!project) return;
+    
+    showNotification('📥 Downloading book...', 'info');
+    
+    // Create download link
+    const link = document.createElement('a');
+    link.href = `/api/projects/${projectId}/download`;
+    link.download = `${project.title.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}.txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    showNotification('✅ Book downloaded successfully!', 'success');
+}
+
+// Show loading state
+function showLoading(show = true, text = 'Loading...') {
+    const loadingOverlay = document.getElementById('loadingOverlay');
+    const loadingTextElement = document.getElementById('loadingText');
+    
+    if (show) {
+        loadingTextElement.textContent = text;
+        loadingOverlay.classList.remove('hidden');
+        loadingOverlay.classList.add('fade-in');
+    } else {
+        loadingOverlay.classList.add('hidden');
+        loadingOverlay.classList.remove('fade-in');
+    }
+}
+
+// Show notification with different types and improved styling
+function showNotification(message, type = 'info', duration = 5000) {
+    // Create notification container if it doesn't exist
+    let container = document.getElementById('notificationContainer');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'notificationContainer';
+        container.className = 'fixed top-4 right-4 z-50 space-y-2';
+        document.body.appendChild(container);
+    }
+    
+    // Create notification element
+    const notification = document.createElement('div');
+    
+    // Styling based on type
+    const styles = {
+        success: 'border-l-4 border-green-500 bg-green-50 text-green-800',
+        error: 'border-l-4 border-red-500 bg-red-50 text-red-800',
+        warning: 'border-l-4 border-yellow-500 bg-yellow-50 text-yellow-800',
+        info: 'border-l-4 border-blue-500 bg-blue-50 text-blue-800'
+    };
+    
+    const icons = {
+        success: '✅',
+        error: '❌',
+        warning: '⚠️',
+        info: 'ℹ️'
+    };
+    
+    notification.className = `notification-item p-4 rounded-lg shadow-lg transition-all duration-300 ${styles[type] || styles.info} fade-in`;
+    notification.innerHTML = `
+        <div class="flex items-start">
+            <div class="flex-shrink-0 mr-3">
+                <span class="text-lg">${icons[type] || '📢'}</span>
+            </div>
+            <div class="flex-1">
+                <p class="text-sm font-medium">${escapeHtml(message)}</p>
+            </div>
+            <div class="flex-shrink-0 ml-3">
+                <button class="text-gray-400 hover:text-gray-600 focus:outline-none" onclick="this.closest('.notification-item').remove()">
+                    <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
+                    </svg>
+                </button>
+            </div>
+        </div>
+    `;
+    
+    // Add to container and auto-remove
+    container.appendChild(notification);
+    
+    // Auto-remove after duration
+    setTimeout(() => {
+        if (notification.parentNode) {
+            notification.classList.remove('fade-in');
+            notification.classList.add('fade-out');
+            setTimeout(() => {
+                notification.remove();
+            }, 300);
+        }
+    }, duration);
+}
+
+// Utility functions
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function formatDate(dateString) {
+    const date = new Date(dateString);
+    return date.toLocaleDateString() + ' ' + date.toLocaleTimeString(undefined, {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true
+    });
+}
+
+function formatRelativeDate(dateString) {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffInSeconds = Math.floor((now - date) / 1000);
+    
+    if (diffInSeconds < 60) return 'just now';
+    if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m ago`;
+    if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h ago`;
+    return date.toLocaleDateString();
+}
+
+// Settings functions
+function showSettingsPage() {
+    settingsModal.classList.remove('hidden');
+    const modalContent = settingsModal.querySelector('.relative');
+    modalContent.classList.add('modal-enter', 'fade-in');
+    
+    // Load current settings
+    loadCurrentSettings();
+    
+    // Setup temperature slider
+    llmTemperature.addEventListener('input', function() {
+        if (temperatureValue) {
+            temperatureValue.textContent = this.value;
+        }
+    });
+    
+    // Setup event listeners
+    closeSettingsModal.addEventListener('click', hideSettingsPage);
+    testConnectionBtn.addEventListener('click', testLLMConnection);
+    saveLLMBtn.addEventListener('click', saveLLMSettings);
+    saveSettingsBtn.addEventListener('click', saveAllSettings);
+    saveWritingBtn.addEventListener('click', saveWritingSettings);
+    
+    // Close settings modal when clicking outside
+    settingsModal.addEventListener('click', function(e) {
+        if (e.target === settingsModal) {
+            hideSettingsPage();
+        }
+    });
+}
+
+function hideSettingsPage() {
+    const modalContent = settingsModal.querySelector('.relative');
+    modalContent.classList.remove('fade-in');
+    modalContent.classList.add('fade-out');
+    
+    setTimeout(() => {
+        settingsModal.classList.add('hidden');
+        modalContent.classList.remove('fade-out');
+    }, 200);
+    
+    // Remove event listeners to prevent duplicates
+    closeSettingsModal.removeEventListener('click', hideSettingsPage);
+    testConnectionBtn.removeEventListener('click', testLLMConnection);
+    saveLLMBtn.removeEventListener('click', saveLLMSettings);
+    saveSettingsBtn.removeEventListener('click', saveAllSettings);
+    saveWritingBtn.removeEventListener('click', saveWritingSettings);
+}
+
+function loadCurrentSettings() {
+    // Load LLM settings
+    fetch('/api/llm/config')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const config = data.config;
+                llmModel.value = config.model || 'gpt-4o';
+                llmBaseUrl.value = config.base_url || '';
+                llmTemperature.value = config.temperature || '0.7';
+                llmMaxTokens.value = config.max_tokens || '4096';
+                
+                if (temperatureValue) {
+                    temperatureValue.textContent = llmTemperature.value;
+                }
+                
+                // Set provider based on config
+                if (config.provider) {
+                    if (config.provider === 'openai') {
+                        llmProvider.value = 'openai';
+                    } else if (config.provider === 'local' && config.base_url) {
+                        if (config.base_url.includes('11434')) {
+                            llmProvider.value = 'ollama';
+                        } else if (config.base_url.includes('1234')) {
+                            llmProvider.value = 'lmstudio';
+                        } else {
+                            llmProvider.value = 'custom';
+                        }
+                    }
+                }
+            }
+        })
+        .catch(error => {
+            console.error('Error loading current settings:', error);
+        });
+    
+    // Load stored settings from localStorage
+    loadStoredSettings();
+}
+
+function loadStoredSettings() {
+    // Load writing settings
+    const defaultTargetLength = localStorage.getItem('defaultTargetLength') || '50000';
+    const defaultGenre = localStorage.getItem('defaultGenre') || '';
+    const maxIterations = localStorage.getItem('maxIterations') || '20';
+    const enableResearch = localStorage.getItem('enableResearch') !== 'false';
+    const autoDownload = localStorage.getItem('autoDownload') === 'true';
+    const expertMode = localStorage.getItem('expertMode') === 'true';
+    
+    document.getElementById('defaultTargetLength').value = defaultTargetLength;
+    document.getElementById('defaultGenre').value = defaultGenre;
+    document.getElementById('maxIterations').value = maxIterations;
+    document.getElementById('enableResearch').checked = enableResearch;
+    document.getElementById('autoDownload').checked = autoDownload;
+    document.getElementById('expertMode').checked = expertMode;
+    
+    // Load application settings
+    const autoRefreshInterval = localStorage.getItem('autoRefreshInterval') || '30';
+    const notificationsEnabled = localStorage.getItem('notificationsEnabled') !== 'false';
+    const soundEnabled = localStorage.getItem('soundEnabled') === 'true';
+    
+    document.getElementById('autoRefreshInterval').value = autoRefreshInterval;
+    document.getElementById('notificationsEnabled').checked = notificationsEnabled;
+    document.getElementById('soundEnabled').checked = soundEnabled;
+    
+    // Update refresh interval
+    if (refreshInterval) {
+        clearInterval(refreshInterval);
+    }
+    if (autoRefreshInterval !== '0') {
+        refreshInterval = setInterval(autoRefresh, parseInt(autoRefreshInterval) * 1000);
+    }
+}
+
+async function testLLMConnection() {
+    testConnectionBtn.disabled = true;
+    connectionStatus.classList.remove('hidden');
+    connectionStatus.className = 'connection-status-info';
+    connectionStatus.innerHTML = '🔍 Testing connection...';
+    
+    try {
+        const response = await fetch('/api/llm/test', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            connectionStatus.className = 'connection-status-success';
+            connectionStatus.innerHTML = `
+                <div class="flex items-center">
+                    <svg class="h-5 w-5 text-green-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+                    </svg>
+                    <div>
+                        <div class="font-medium">✅ Connection successful!</div>
+                        <div class="text-sm text-gray-600">Provider: ${data.provider} | Model: ${data.model}</div>
+                    </div>
+                </div>
+            `;
+            showNotification('✅ LLM connection test passed!', 'success');
+            
+            // Update the status indicator in navbar
+            updateLLMStatus(data.model, data.provider);
+        } else {
+            connectionStatus.className = 'connection-status-error';
+            connectionStatus.innerHTML = `
+                <div class="flex items-center">
+                    <svg class="h-5 w-5 text-red-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+                    </svg>
+                    <div>
+                        <div class="font-medium">❌ Connection failed</div>
+                        <div class="text-sm">${data.error}</div>
+                    </div>
+                </div>
+            `;
+            showNotification('❌ LLM connection test failed: ' + data.error, 'error');
+            
+            // Show troubleshooting tips based on the error
+            showTroubleshootingTips(data.provider, data.base_url, data.error);
+        }
+    } catch (error) {
+        connectionStatus.className = 'connection-status-error';
+        connectionStatus.innerHTML = `
+            <div class="flex items-center">
+                <svg class="h-5 w-5 text-red-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+                </svg>
+                <div>
+                    <div class="font-medium">❌ Network Error</div>
+                    <div class="text-sm">${error.message}</div>
+                </div>
+            </div>
+        `;
+        showNotification('❌ LLM connection test failed: ' + error.message, 'error');
+    } finally {
+        testConnectionBtn.disabled = false;
+        testConnectionBtn.innerHTML = '<span class="mr-2">🔍</span>Test Connection';
+    }
+}
+
+function showTroubleshootingTips(provider, baseUrl, error) {
+    const troubleshootingInfo = document.getElementById('troubleshootingInfo');
+    const troubleshootingContent = document.getElementById('troubleshootingContent');
+    
+    let tips = [];
+    
+    if (error.includes("Connection failed")) {
+        if (provider === 'local') {
+            tips = [
+                "⚠️ Make sure your local LLM server is running",
+                `🌐 Verify the server is accessible at: ${baseUrl || 'your configured URL'}`,
+                "🔧 Check if the server is listening on the correct port",
+                "📝 Ensure your server supports OpenAI-compatible API"
+            ];
+        } else {
+            tips = [
+                "🌐 Check your internet connection",
+                "🔑 Verify your API key is correct", 
+                "📝 Ensure your API key has proper permissions"
+            ];
+        }
+    } else if (error.includes("Authentication")) {
+        tips = [
+            "🔑 Check your API key - make sure it's copied correctly",
+            "🔒 Verify your API key hasn't expired",
+            "📝 Ensure your API account has sufficient credit"
+        ];
+    } else if (error.includes("Model")) {
+        tips = [
+            "📋 Verify the model name is spelled correctly",
+            "⚙️ Check if the model is available in your region",
+            "🔄 Try using a different model"
+        ];
+    } else {
+        // Generic tips based on provider
+        if (provider === 'openai') {
+            tips = [
+                "🔑 Verify your OpenAI API key",
+                "💳 Check if your OpenAI account has billing set up",
+                "🌐 Ensure stable internet connection"
+            ];
+        } else if (provider === 'local') {
+            tips = [
+                "🚀 Make sure your local LLM server is running",
+                "🔌 Check server logs for errors", 
+                "📝 Verify the server configuration"
+            ];
+        } else {
+            tips = [
+                "🌐 Check your network connection",
+                "🔑 Verify authentication details",
+                "📝 Ensure correct model configuration"
+            ];
+        }
+    }
+    
+    if (tips.length > 0) {
+        troubleshootingContent.innerHTML = tips.map(tip => `<div>${tip}</div>`).join('');
+        troubleshootingInfo.classList.remove('hidden');
+        
+        // Auto-hide after 10 seconds
+        setTimeout(() => {
+            troubleshootingInfo.classList.add('hidden');
+        }, 10000);
+    }
+}
+
+function updateLLMStatus(model, provider) {
+    const statusElement = document.getElementById('llmStatus');
+    if (statusElement) {
+        statusElement.innerHTML = `
+            <span class="inline-block w-2 h-2 bg-green-500 rounded-full mr-2"></span>
+            ${provider}: ${model}
+        `;
+    }
+}
+
+async function applyPreset(presetName) {
+    try {
+        const response = await fetch(`/api/llm/preset/${presetName}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            // Update form fields with preset values
+            loadCurrentSettings();
+            showNotification(`✅ Applied ${presetName} preset successfully!`, 'success');
+            
+            // Test connection automatically after applying preset
+            setTimeout(() => {
+                testLLMConnection();
+            }, 1000);
+        } else {
+            showNotification(`❌ Failed to apply preset: ${data.error}`, 'error');
+        }
+    } catch (error) {
+        console.error('Error applying preset:', error);
+        showNotification('❌ Error applying preset', 'error');
+    }
+}
+
+async function saveLLMSettings() {
+    saveLLMBtn.disabled = true;
+    saveLLMBtn.innerHTML = '💾 Saving...';
+    
+    const config = {
+        model: llmModel.value.trim(),
+        api_key: llmApiKey.value.trim(),
+        base_url: llmBaseUrl.value.trim(),
+        temperature: parseFloat(llmTemperature.value),
+        max_tokens: parseInt(llmMaxTokens.value)
+    };
+    
+    // Validate required fields
+    if (!config.model) {
+        showNotification('❌ Model name is required', 'error');
+        saveLLMBtn.disabled = false;
+        saveLLMBtn.innerHTML = '<span class="mr-2">💾</span>Save Configuration';
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/llm/config', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(config)
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showNotification('✅ LLM configuration saved successfully!', 'success');
+            checkLLMStatus(); // Update status display
+        } else {
+            showNotification('❌ Failed to save LLM configuration: ' + data.error, 'error');
+        }
+    } catch (error) {
+        console.error('Error saving LLM settings:', error);
+        showNotification('❌ Error saving LLM configuration', 'error');
+    } finally {
+        saveLLMBtn.disabled = false;
+        saveLLMBtn.innerHTML = '<span class="mr-2">💾</span>Save Configuration';
+    }
+}
+
+async function saveWritingSettings() {
+    const settings = {
+        defaultTargetLength: document.getElementById('defaultTargetLength').value,
+        defaultGenre: document.getElementById('defaultGenre').value,
+        maxIterations: document.getElementById('maxIterations').value,
+        autoDownload: document.getElementById('autoDownload').checked,
+        enableResearch: document.getElementById('enableResearch').checked,
+        expertMode: document.getElementById('expertMode').checked
+    };
+    
+    try {
+        const response = await fetch('/api/settings', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(settings)
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showNotification('Writing settings saved successfully', 'success');
+            
+            // Save to localStorage for persistence
+            localStorage.setItem('defaultTargetLength', settings.defaultTargetLength);
+            localStorage.setItem('defaultGenre', settings.defaultGenre);
+            localStorage.setItem('maxIterations', settings.maxIterations);
+            localStorage.setItem('autoDownload', settings.autoDownload.toString());
+            localStorage.setItem('enableResearch', settings.enableResearch.toString());
+            localStorage.setItem('expertMode', settings.expertMode.toString());
+        } else {
+            showNotification('Failed to save writing settings: ' + data.error, 'error');
+        }
+    } catch (error) {
+        console.error('Error saving writing settings', error);
+        showNotification('Failed to save writing settings', 'error');
+    }
+}
+
+async function saveAllSettings() {
+    // Save application settings
+    const settings = {
+        autoRefreshInterval: document.getElementById('autoRefreshInterval').value,
+        notificationsEnabled: document.getElementById('notificationsEnabled').checked,
+        soundEnabled: document.getElementById('soundEnabled').checked
+    };
+    
+    try {
+        const response = await fetch('/api/settings', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(settings)
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showNotification('All settings saved successfully', 'success');
+        } else {
+            showNotification('Failed to save settings: ' + data.error, 'error');
+        }
+    } catch (error) {
+        console.error('Error saving settings:', error);
+        showNotification('Failed to save settings', 'error');
+    }
+}

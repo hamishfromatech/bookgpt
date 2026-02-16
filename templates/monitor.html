@@ -1,0 +1,241 @@
+{% extends "base.html" %}
+
+{% block title %}Monitoring Project{% endblock %}
+
+{% block content %}
+<div class="space-y-8 animate-fade-in pb-20">
+    <!-- Project Header -->
+    <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-6 p-8 bg-surface-50 dark:bg-surface-900/50 rounded-[2rem] border border-surface-200 dark:border-white/5 shadow-soft">
+        <div class="flex items-center gap-6">
+            <div class="w-16 h-16 bg-accent rounded-2xl flex items-center justify-center text-white shadow-glow">
+                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                </svg>
+            </div>
+            <div>
+                <h2 id="monitorProjectTitle" class="font-display text-3xl font-semibold text-slate-900 dark:text-white mb-2">Loading Project...</h2>
+                <div class="flex items-center gap-4 text-sm font-medium">
+                    <span id="monitorStatusBadge" class="px-3 py-1 rounded-full bg-editorial-teal/10 text-editorial-teal border border-editorial-teal/20">Initializing</span>
+                    <span id="monitorGenre" class="text-slate-400 capitalize">Fiction</span>
+                    <span class="text-slate-300 dark:text-white/10">|</span>
+                    <span id="monitorWords" class="text-slate-400">0 words</span>
+                </div>
+            </div>
+        </div>
+        <div class="flex items-center gap-3">
+            <button onclick="toggleChat()" class="inline-flex items-center justify-center gap-2 px-6 py-3.5 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-xl font-medium transition-all hover:-translate-y-0.5 active:translate-y-0 shadow-soft">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                </svg>
+                <span>Agent Chat</span>
+            </button>
+            <button onclick="window.location.href='/'" class="p-3.5 rounded-xl border border-surface-200 dark:border-white/10 text-slate-500 hover:text-slate-900 dark:hover:text-white transition-all">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        <!-- Left Column: Pipeline & Progress -->
+        <div class="lg:col-span-4 space-y-8">
+            <div class="bg-surface-50 dark:bg-surface-900/50 p-8 rounded-[2rem] border border-surface-200 dark:border-white/5 shadow-soft">
+                <h3 class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-8">Writing Pipeline</h3>
+                <div class="space-y-6 relative">
+                    <div class="absolute left-4 top-2 bottom-2 w-px bg-slate-200 dark:bg-white/10"></div>
+                    
+                    <!-- Planning -->
+                    <div class="relative pl-12 group">
+                        <div class="absolute left-2.5 top-1.5 w-3 h-3 rounded-full border-2 border-slate-200 dark:border-white/10 bg-surface-50 dark:bg-surface-900 transition-all z-10"></div>
+                        <div class="flex flex-col gap-1">
+                            <span class="text-sm font-bold text-slate-900 dark:text-white">Planning & Outline</span>
+                            <span id="phasePlanning" class="text-xs font-medium text-slate-400">Pending</span>
+                        </div>
+                    </div>
+
+                    <!-- Research -->
+                    <div class="relative pl-12 group">
+                        <div class="absolute left-2.5 top-1.5 w-3 h-3 rounded-full border-2 border-slate-200 dark:border-white/10 bg-surface-50 dark:bg-surface-900 transition-all z-10"></div>
+                        <div class="flex flex-col gap-1">
+                            <span class="text-sm font-bold text-slate-900 dark:text-white">Research & Context</span>
+                            <span id="phaseResearch" class="text-xs font-medium text-slate-400">Pending</span>
+                        </div>
+                    </div>
+
+                    <!-- Writing -->
+                    <div class="relative pl-12 group">
+                        <div class="absolute left-2.5 top-1.5 w-3 h-3 rounded-full border-2 border-slate-200 dark:border-white/10 bg-surface-50 dark:bg-surface-900 transition-all z-10"></div>
+                        <div class="flex flex-col gap-1">
+                            <span class="text-sm font-bold text-slate-900 dark:text-white">Chapter Writing</span>
+                            <span id="phaseWriting" class="text-xs font-medium text-slate-400">Pending</span>
+                        </div>
+                    </div>
+
+                    <!-- Refining -->
+                    <div class="relative pl-12 group">
+                        <div class="absolute left-2.5 top-1.5 w-3 h-3 rounded-full border-2 border-slate-200 dark:border-white/10 bg-surface-50 dark:bg-surface-900 transition-all z-10"></div>
+                        <div class="flex flex-col gap-1">
+                            <span class="text-sm font-bold text-slate-900 dark:text-white">Agent Refinement</span>
+                            <span id="phaseRefining" class="text-xs font-medium text-slate-400">Pending</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Documents -->
+            <div class="bg-surface-50 dark:bg-surface-900/50 p-8 rounded-[2rem] border border-surface-200 dark:border-white/5 shadow-soft">
+                <div class="flex items-center justify-between mb-6">
+                    <h3 class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Project Documents</h3>
+                    <div class="w-2 h-2 rounded-full bg-editorial-teal animate-pulse"></div>
+                </div>
+                <div id="monitorDocumentsList" class="space-y-3">
+                    <div class="text-sm text-slate-400 italic">No documents available yet...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column: Activity Feed -->
+        <div class="lg:col-span-8 space-y-8">
+            <!-- Progress Detail -->
+            <div class="bg-surface-50 dark:bg-surface-900/50 p-8 rounded-[2rem] border border-surface-200 dark:border-white/5 shadow-soft relative overflow-hidden group">
+                <div class="absolute top-0 right-0 w-64 h-64 bg-accent/5 rounded-full blur-3xl -mr-32 -mt-32"></div>
+                <div class="relative">
+                    <div class="flex items-center justify-between mb-4">
+                        <h4 class="text-sm font-bold text-slate-900 dark:text-white">Recent Activity</h4>
+                        <span id="monitorProgressPercent" class="text-xs font-bold text-accent">0%</span>
+                    </div>
+                    <div class="w-full h-2 bg-slate-200 dark:bg-white/5 rounded-full mb-8 overflow-hidden">
+                        <div id="monitorProgressBar" class="h-full bg-accent transition-all duration-1000 ease-out shadow-glow" style="width: 0%"></div>
+                    </div>
+                    <div id="monitorActivityLog" class="space-y-4">
+                        <!-- Log entries will appear here -->
+                        <div class="flex items-center gap-3 text-sm font-medium text-slate-500">
+                            <div class="w-1.5 h-1.5 rounded-full bg-slate-300"></div>
+                            <span>Initializing monitoring system...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Agent Invite (Visible when status is refining) -->
+            <div id="agentWelcomeInvite" class="hidden bg-accent/10 p-8 rounded-[2rem] border border-accent/20 animate-slide-up">
+                <div class="flex items-start gap-6">
+                    <div class="w-14 h-14 bg-accent text-white rounded-2xl flex items-center justify-center shadow-glow shrink-0">
+                        <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                        </svg>
+                    </div>
+                    <div>
+                        <h4 class="font-display text-xl font-semibold text-slate-900 dark:text-white mb-2">Agent Mode is Ready</h4>
+                        <p class="text-slate-600 dark:text-slate-300 font-medium mb-6">The initial draft is complete. I'm now standing by to assist with structural edits, style refinements, or specific content adjustments.</p>
+                        <button onclick="toggleChat(true)" class="px-6 py-3 bg-accent hover:bg-accent-muted text-white rounded-xl font-medium shadow-glow transition-all hover:scale-105 active:scale-95">
+                            Start Collaborating
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Sliding Chat Drawer -->
+<div id="chatDrawer" class="fixed inset-y-0 right-0 w-full lg:w-[32rem] bg-white dark:bg-canvas-dark shadow-2xl z-[150] transform translate-x-full transition-transform duration-500 ease-in-out border-l border-surface-200 dark:border-white/10 flex flex-col">
+    <div class="flex items-center justify-between p-6 border-b border-surface-200 dark:border-white/10 bg-surface-50 dark:bg-white/5">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 bg-editorial-teal rounded-xl flex items-center justify-center text-white shadow-glow-teal">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a1.994 1.994 0 01-1.414-.586m0 0L11 14h4a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2v4l.586-.586z" />
+                </svg>
+            </div>
+            <div>
+                <h3 class="text-sm font-bold text-slate-900 dark:text-white">Supervisor AI</h3>
+                <span class="text-[10px] font-bold text-editorial-teal uppercase tracking-widest">Agent Mode Active</span>
+            </div>
+        </div>
+        <button onclick="toggleChat(false)" class="p-2.5 rounded-xl hover:bg-surface-100 dark:hover:bg-white/10 text-slate-400 transition-all">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+        </button>
+    </div>
+
+    <!-- Activity Feed -->
+    <div id="activityFeed" class="flex-1 overflow-y-auto p-6 space-y-6 scroll-smooth bg-canvas-light dark:bg-canvas-dark">
+        <!-- Messages appear here -->
+        <div class="flex flex-col items-start animate-fade-in">
+            <div class="flex items-center gap-2 mb-2 px-1">
+                <div class="w-6 h-6 bg-editorial-teal text-white rounded-lg flex items-center justify-center">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                    </svg>
+                </div>
+                <span class="text-[10px] font-bold uppercase tracking-widest text-slate-400">Supervisor Agent</span>
+            </div>
+            <div class="max-w-[85%] rounded-2xl p-5 bg-white dark:bg-white/5 border border-surface-200 dark:border-white/10 shadow-sm">
+                <p class="text-sm font-medium text-slate-600 dark:text-slate-300">I'm ready to assist you. What would you like to work on first?</p>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Command Input -->
+    <div class="p-6 border-t border-surface-200 dark:border-white/10 bg-surface-50 dark:bg-white/5">
+        <div class="relative">
+            <textarea id="commandInput" placeholder="Instruct the agent..." rows="1"
+                class="w-full pl-5 pr-14 py-4 bg-white dark:bg-canvas-dark border border-surface-200 dark:border-white/10 rounded-2xl text-slate-900 dark:text-white font-medium outline-none focus:ring-2 focus:ring-accent/20 transition-all resize-none overflow-hidden"
+                oninput="this.style.height = '';this.style.height = this.scrollHeight + 'px'"></textarea>
+            <button id="commandSendButton" onclick="sendCommand()" class="absolute right-2 bottom-2 top-2 w-10 h-10 bg-accent hover:bg-accent-muted text-white rounded-xl font-medium shadow-glow transition-all active:scale-95 flex items-center justify-center">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                </svg>
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Chat Backdrop -->
+<div id="chatBackdrop" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[140] hidden transition-opacity duration-500 opacity-0" onclick="toggleChat(false)"></div>
+
+<style>
+    #chatDrawer.open {
+        transform: translateX(0);
+    }
+    
+    #chatBackdrop.visible {
+        opacity: 1;
+    }
+
+    .prose pre {
+        background: rgba(0, 0, 0, 0.2) !important;
+        border-radius: 0.75rem;
+        padding: 1rem;
+        margin-top: 0.75rem;
+        margin-bottom: 0.75rem;
+    }
+
+    .prose code {
+        color: #2dd4bf;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        font-size: 0.875rem;
+    }
+</style>
+
+<script>
+    function toggleChat(force) {
+        const drawer = document.getElementById('chatDrawer');
+        const backdrop = document.getElementById('chatBackdrop');
+        const isOpen = typeof force === 'boolean' ? force : !drawer.classList.contains('open');
+        
+        if (isOpen) {
+            drawer.classList.add('open');
+            backdrop.classList.remove('hidden');
+            setTimeout(() => backdrop.classList.add('visible'), 10);
+            document.getElementById('commandInput').focus();
+        } else {
+            drawer.classList.remove('open');
+            backdrop.classList.remove('visible');
+            setTimeout(() => backdrop.classList.add('hidden'), 500);
+        }
+    }
+</script>
+{% endblock %}

@@ -1,0 +1,17 @@
+# BookGPT Requirements
+
+# Web Framework
+flask>=2.3.0
+
+# OpenAI Python SDK (supports custom base URLs)
+openai>=1.0.0
+
+# HTTP client used by OpenAI
+httpx>=0.25.0
+
+# Utilities
+python-dotenv>=1.0.0
+werkzeug>=2.3.0
+
+# Optional: For async support
+anyio>=4.0.0

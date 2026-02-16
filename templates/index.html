@@ -1,0 +1,214 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<!-- Stats Grid - Editorial Style -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+    <!-- Projects Card -->
+    <div class="group relative bg-surface-50 dark:bg-surface-900/50 rounded-2xl p-6 border border-surface-200 dark:border-white/5 overflow-hidden transition-all hover:shadow-soft">
+        <div class="absolute top-0 right-0 w-32 h-32 bg-accent/5 rounded-full blur-2xl transition-all group-hover:bg-accent/10"></div>
+        <div class="relative flex items-start justify-between mb-4">
+            <div class="w-11 h-11 bg-accent/10 rounded-xl flex items-center justify-center text-accent group-hover:scale-110 transition-transform">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                </svg>
+            </div>
+            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-accent/10 text-accent">Active</span>
+        </div>
+        <div class="relative">
+            <div class="text-4xl font-display font-semibold text-slate-900 dark:text-white mb-1" id="totalProjects">0</div>
+            <div class="text-sm font-medium text-slate-500 dark:text-slate-400">Book Projects</div>
+        </div>
+    </div>
+    
+    <!-- Chapters Card -->
+    <div class="group relative bg-surface-50 dark:bg-surface-900/50 rounded-2xl p-6 border border-surface-200 dark:border-white/5 overflow-hidden transition-all hover:shadow-soft">
+        <div class="absolute top-0 right-0 w-32 h-32 bg-editorial-teal/5 rounded-full blur-2xl transition-all group-hover:bg-editorial-teal/10"></div>
+        <div class="relative flex items-start justify-between mb-4">
+            <div class="w-11 h-11 bg-editorial-teal/10 rounded-xl flex items-center justify-center text-editorial-teal group-hover:scale-110 transition-transform">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+            </div>
+            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-editorial-teal/10 text-editorial-teal">Written</span>
+        </div>
+        <div class="relative">
+            <div class="text-4xl font-display font-semibold text-slate-900 dark:text-white mb-1" id="totalChapters">0</div>
+            <div class="text-sm font-medium text-slate-500 dark:text-slate-400">Total Chapters</div>
+        </div>
+    </div>
+
+    <!-- Words Card -->
+    <div class="group relative bg-surface-50 dark:bg-surface-900/50 rounded-2xl p-6 border border-surface-200 dark:border-white/5 overflow-hidden transition-all hover:shadow-soft">
+        <div class="absolute top-0 right-0 w-32 h-32 bg-editorial-gold/5 rounded-full blur-2xl transition-all group-hover:bg-editorial-gold/10"></div>
+        <div class="relative flex items-start justify-between mb-4">
+            <div class="w-11 h-11 bg-editorial-gold/10 rounded-xl flex items-center justify-center text-editorial-gold group-hover:scale-110 transition-transform">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a1.994 1.994 0 01-1.414-.586m0 0L11 14h4a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2v4l.586-.586z" />
+                </svg>
+            </div>
+            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-editorial-gold/10 text-editorial-gold">Volume</span>
+        </div>
+        <div class="relative">
+            <div class="text-4xl font-display font-semibold text-slate-900 dark:text-white mb-1" id="totalWords">0</div>
+            <div class="text-sm font-medium text-slate-500 dark:text-slate-400">Total Words</div>
+        </div>
+    </div>
+</div>
+
+<!-- Projects Section -->
+<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+    <div>
+        <h2 class="font-display text-2xl font-medium text-slate-900 dark:text-white mb-1">Your Library</h2>
+        <p class="text-sm font-medium text-slate-500 dark:text-slate-400">Manage and monitor your AI-generated manuscripts</p>
+    </div>
+    <button id="createProjectBtn" class="inline-flex items-center justify-center gap-2 px-6 py-3 bg-accent hover:bg-accent-muted text-white rounded-xl font-medium shadow-glow transition-all hover:-translate-y-0.5 active:translate-y-0 whitespace-nowrap">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+        </svg>
+        <span>New Project</span>
+    </button>
+</div>
+
+<!-- Projects Grid -->
+<div id="projectsList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+    <!-- Projects will be loaded here -->
+</div>
+
+<!-- Empty State - Editorial Redesign -->
+<div id="emptyState" class="hidden">
+    <div class="flex flex-col items-center justify-center py-20 bg-surface-50 dark:bg-surface-900/50 rounded-[2rem] border border-surface-200 dark:border-white/5">
+        <div class="w-20 h-20 bg-surface-100 dark:bg-white/5 rounded-2xl flex items-center justify-center text-slate-300 dark:text-slate-600 mb-6">
+            <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+            </svg>
+        </div>
+        <h3 class="font-display text-xl font-medium text-slate-900 dark:text-white mb-2">No manuscripts yet</h3>
+        <p class="text-slate-500 dark:text-slate-400 mb-8 max-w-xs text-center font-medium">Start your first AI-powered book project and watch the magic happen.</p>
+        <button id="createFirstProjectBtn" class="px-8 py-3.5 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-xl font-medium hover:opacity-90 transition-all">
+            Create First Project
+        </button>
+    </div>
+</div>
+
+<!-- Create Project Modal -->
+<div id="createProjectModal" class="fixed inset-0 z-[100] hidden overflow-y-auto" role="dialog" aria-modal="true">
+    <div class="flex items-center justify-center min-h-screen p-4">
+        <div class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm transition-opacity"></div>
+        <div class="relative bg-surface-50 dark:bg-surface-900 rounded-[2rem] shadow-2xl w-full max-w-xl overflow-hidden border border-surface-200 dark:border-white/5 transform transition-all">
+            <div class="p-8">
+                <div class="flex items-center justify-between mb-8">
+                    <h3 class="font-display text-2xl font-medium text-slate-900 dark:text-white">New Manuscript</h3>
+                    <button id="cancelBtn" class="p-2 rounded-xl hover:bg-surface-100 dark:hover:bg-white/5 text-slate-400 transition-all">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+                
+                <form id="createProjectForm" class="space-y-5">
+                    <div class="space-y-1.5">
+                        <label class="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider ml-1">Book Title</label>
+                        <input type="text" id="title" name="title" required 
+                            class="input-editorial w-full px-5 py-4 rounded-xl text-slate-900 dark:text-white font-medium outline-none"
+                            placeholder="e.g. The Midnight Code">
+                    </div>
+                    
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="space-y-1.5">
+                            <label class="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider ml-1">Genre</label>
+                            <select id="genre" name="genre" required 
+                                class="input-editorial w-full px-5 py-4 rounded-xl text-slate-900 dark:text-white font-medium outline-none">
+                                <option value="fiction">Fiction</option>
+                                <option value="non_fiction">Non-Fiction</option>
+                                <option value="fantasy">Fantasy</option>
+                                <option value="mystery">Mystery</option>
+                                <option value="sci-fi">Sci-Fi</option>
+                            </select>
+                        </div>
+                        <div class="space-y-1.5">
+                            <label class="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider ml-1">Target Words</label>
+                            <input type="number" id="target_length" name="target_length" value="50000" 
+                                class="input-editorial w-full px-5 py-4 rounded-xl text-slate-900 dark:text-white font-medium outline-none">
+                        </div>
+                    </div>
+                    
+                    <div class="space-y-1.5">
+                        <label class="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider ml-1">Writing Style</label>
+                        <select id="writing_style" name="writing_style" 
+                            class="input-editorial w-full px-5 py-4 rounded-xl text-slate-900 dark:text-white font-medium outline-none">
+                            <option value="narrative">Narrative</option>
+                            <option value="descriptive">Descriptive</option>
+                            <option value="conversational">Conversational</option>
+                            <option value="formal">Formal</option>
+                        </select>
+                    </div>
+                    
+                    <div class="space-y-1.5">
+                        <label class="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider ml-1">Description</label>
+                        <textarea id="description" name="description" rows="3" 
+                            class="input-editorial w-full px-5 py-4 rounded-xl text-slate-900 dark:text-white font-medium outline-none resize-none"
+                            placeholder="Briefly describe your book's premise..."></textarea>
+                    </div>
+                    
+                    <div class="pt-4">
+                        <button type="submit" class="w-full py-4 bg-accent hover:bg-accent-muted text-white rounded-xl font-medium shadow-glow transition-all hover:-translate-y-0.5 active:translate-y-0">
+                            Create Manuscript
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Project Details Modal -->
+<div id="projectDetailsModal" class="fixed inset-0 z-[100] hidden overflow-y-auto" role="dialog" aria-modal="true">
+    <div class="flex items-center justify-center min-h-screen p-4">
+        <div class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm transition-opacity"></div>
+        <div class="relative bg-surface-50 dark:bg-surface-900 rounded-[2rem] shadow-2xl w-full max-w-5xl max-h-[90vh] overflow-hidden border border-surface-200 dark:border-white/5 transform transition-all">
+            <div class="flex items-center justify-between px-8 py-6 border-b border-surface-200 dark:border-white/5">
+                <h3 id="projectTitle" class="font-display text-xl font-medium text-slate-900 dark:text-white">Project Details</h3>
+                <button id="closeProjectModal" class="p-2 rounded-xl hover:bg-surface-100 dark:hover:bg-white/5 text-slate-400 transition-all">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            <div id="projectContent" class="p-8 overflow-y-auto max-h-[calc(90vh-10rem)]">
+                <!-- Content loaded by script.js -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Loading Overlay -->
+<div id="loadingOverlay" class="fixed inset-0 z-[200] hidden bg-slate-900/30 backdrop-blur-md flex items-center justify-center">
+    <div class="bg-surface-50 dark:bg-surface-900 p-8 rounded-2xl shadow-2xl flex flex-col items-center border border-surface-200 dark:border-white/5">
+        <div class="w-12 h-12 border-2 border-surface-200 dark:border-white/10 border-t-accent rounded-full animate-spin mb-4"></div>
+        <p id="loadingText" class="text-sm font-medium text-slate-600 dark:text-slate-300 uppercase tracking-wider">Processing</p>
+    </div>
+</div>
+
+<style>
+    .input-editorial {
+        transition: all 0.3s ease;
+        background: rgba(235, 231, 222, 0.5);
+    }
+    
+    .input-editorial:focus {
+        background: rgba(235, 231, 222, 0.8);
+        box-shadow: 0 0 0 3px rgba(232, 93, 76, 0.1);
+    }
+
+    .dark .input-editorial {
+        background: rgba(255, 255, 255, 0.05);
+    }
+
+    .dark .input-editorial:focus {
+        background: rgba(255, 255, 255, 0.1);
+        box-shadow: 0 0 0 3px rgba(232, 93, 76, 0.2);
+    }
+</style>
+{% endblock %}

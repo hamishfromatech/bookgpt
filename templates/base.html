@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BookGPT | AI Authoring Platform</title>
+    <script src="{{ url_for('static', filename='tailwind.min.js') }}"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['DM Sans', 'sans-serif'],
+                        display: ['Playfair Display', 'serif'],
+                    },
+                    colors: {
+                        canvas: {
+                            light: '#f8f6f1',
+                            dark: '#0d0d0d',
+                        },
+                        surface: {
+                            50: '#fdfcfa',
+                            100: '#f8f6f1',
+                            200: '#ebe7de',
+                            800: '#2a2a2a',
+                            900: '#1a1a1a',
+                        },
+                        accent: {
+                            DEFAULT: '#e85d4c',
+                            muted: '#c44d3f',
+                            light: '#f25c4a',
+                        },
+                        editorial: {
+                            gold: '#d4a853',
+                            teal: '#2dd4bf',
+                        }
+                    },
+                    boxShadow: {
+                        'soft': '0 2px 40px -8px rgba(0, 0, 0, 0.08)',
+                        'glow': '0 0 40px -10px rgba(232, 93, 76, 0.3)',
+                        'glow-teal': '0 0 40px -10px rgba(45, 212, 191, 0.3)',
+                    },
+                    animation: {
+                        'fade-in': 'fadeIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+                        'slide-up': 'slideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+                        'slide-in': 'slideIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+                        'float': 'float 6s ease-in-out infinite',
+                        'pulse-soft': 'pulseSoft 2s ease-in-out infinite',
+                    },
+                    keyframes: {
+                        fadeIn: {
+                            '0%': { opacity: '0' },
+                            '100%': { opacity: '1' },
+                        },
+                        slideUp: {
+                            '0%': { opacity: '0', transform: 'translateY(20px)' },
+                            '100%': { opacity: '1', transform: 'translateY(0)' },
+                        },
+                        slideIn: {
+                            '0%': { opacity: '0', transform: 'translateX(-10px)' },
+                            '100%': { opacity: '1', transform: 'translateX(0)' },
+                        },
+                        float: {
+                            '0%, 100%': { transform: 'translateY(0)' },
+                            '50%': { transform: 'translateY(-8px)' },
+                        },
+                        pulseSoft: {
+                            '0%, 100%': { opacity: '1' },
+                            '50%': { opacity: '0.7' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Noise Texture */
+        .noise-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 9999;
+            opacity: 0.03;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+        }
+
+        /* Smooth transitions */
+        * {
+            transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(0, 0, 0, 0.15);
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(0, 0, 0, 0.25);
+        }
+
+        .dark ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.15);
+        }
+
+        .dark ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.25);
+        }
+
+        /* Glass Panel */
+        .glass-panel {
+            background: rgba(255, 252, 250, 0.7);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(0, 0, 0, 0.04);
+        }
+
+        .dark .glass-panel {
+            background: rgba(13, 13, 13, 0.7);
+            border: 1px solid rgba(255, 255, 255, 0.04);
+        }
+
+        /* Sidebar styling */
+        .sidebar-link {
+            position: relative;
+            overflow: hidden;
+        }
+
+        .sidebar-link::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 3px;
+            height: 0;
+            background: linear-gradient(180deg, #e85d4c, #f25c4a);
+            transition: height 0.3s ease;
+        }
+
+        .sidebar-link:hover::before,
+        .sidebar-link-active::before {
+            height: 24px;
+        }
+
+        .sidebar-link-active {
+            background: linear-gradient(90deg, rgba(232, 93, 76, 0.08) 0%, transparent 100%);
+        }
+
+        /* Loading Shimmer */
+        .shimmer {
+            background: linear-gradient(90deg, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0.05) 50%, rgba(0, 0, 0, 0) 100%);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s infinite;
+        }
+
+        .dark .shimmer {
+            background: linear-gradient(90deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.05) 50%, rgba(255, 255, 255, 0) 100%);
+        }
+
+        @keyframes shimmer {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+
+        /* Typographic refinements */
+        body {
+            font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+    </style>
+    {% block head %}{% endblock %}
+</head>
+<body class="h-full bg-canvas-light dark:bg-canvas-dark text-slate-800 dark:text-slate-200">
+    <div class="noise-overlay"></div>
+    <div class="flex h-full overflow-hidden relative">
+        <!-- Sidebar -->
+        <aside class="hidden lg:flex lg:flex-shrink-0 w-72 flex-col border-r border-surface-200 dark:border-white/5 bg-surface-50/50 dark:bg-surface-900/50 backdrop-blur-xl">
+            <div class="p-8 flex flex-col h-full">
+                <!-- Brand -->
+                <div class="mb-12 animate-fade-in">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 bg-accent rounded-xl flex items-center justify-center shadow-glow animate-float">
+                            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                            </svg>
+                        </div>
+                        <span class="font-display font-semibold text-xl text-slate-900 dark:text-white tracking-tight">BookGPT</span>
+                    </div>
+                </div>
+                
+                <!-- Navigation -->
+                <nav class="space-y-1 flex-1 animate-slide-in" style="animation-delay: 0.1s;">
+                    <a href="/" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all {% if request.path == '/' %}sidebar-link-active text-accent{% else %}text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-surface-100 dark:hover:bg-white/5{% endif %}">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                        </svg>
+                        Dashboard
+                    </a>
+                    <a href="/settings" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all {% if request.path == '/settings' %}sidebar-link-active text-accent{% else %}text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-surface-100 dark:hover:bg-white/5{% endif %}">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                        Settings
+                    </a>
+                    <a href="/logout" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/5">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                        </svg>
+                        Logout
+                    </a>
+                </nav>
+
+                <!-- User Section -->
+                <div class="mt-auto pt-6 border-t border-surface-200 dark:border-white/5 animate-slide-in" style="animation-delay: 0.2s;">
+                    <a href="/profile" class="flex items-center gap-3 mb-4 px-2 group">
+                        <div class="w-9 h-9 rounded-full bg-accent flex items-center justify-center text-white text-sm font-semibold shadow-glow group-hover:scale-105 transition-transform">
+                            {{ current_user.username[0].upper() }}
+                        </div>
+                        <div class="flex flex-col overflow-hidden">
+                            <span class="text-sm font-medium text-slate-900 dark:text-white truncate group-hover:text-accent transition-colors">{{ current_user.username }}</span>
+                            <span class="text-xs text-slate-400 truncate">{{ current_user.email }}</span>
+                        </div>
+                    </a>
+                    
+                    <!-- Theme Toggle -->
+                    <button id="themeToggle" class="flex items-center justify-between w-full p-3 rounded-xl bg-surface-100 dark:bg-white/5 text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-accent transition-all">
+                        <span class="flex items-center gap-2">
+                            <svg id="sunIcon" class="hidden w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m12.728 0l-.707-.707M6.343 6.343l-.707-.707M12 5a7 7 0 100 14 7 7 0 000-14z" />
+                            </svg>
+                            <svg id="moonIcon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+                            </svg>
+                            <span>Theme</span>
+                        </span>
+                        <div class="w-8 h-4 bg-surface-200 dark:bg-white/10 rounded-full relative">
+                            <div id="themeToggleCircle" class="absolute top-0.5 left-0.5 w-3 h-3 bg-white dark:bg-slate-300 rounded-full transition-all duration-300 shadow-sm"></div>
+                        </div>
+                    </button>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <div class="flex-1 flex flex-col min-w-0 overflow-hidden relative">
+            <!-- Header -->
+            <header class="h-20 flex items-center justify-between px-8 bg-surface-50/80 dark:bg-surface-900/80 backdrop-blur-xl border-b border-surface-200 dark:border-white/5 z-20">
+                <div class="flex items-center gap-4">
+                    <h1 class="font-display text-xl font-medium text-slate-900 dark:text-white">{% block title %}Dashboard{% endblock %}</h1>
+                </div>
+                <div class="flex items-center gap-4">
+                    <!-- LLM Status -->
+                    <div id="llmStatus" class="hidden md:flex items-center gap-2.5 px-4 py-2 rounded-full bg-editorial-teal/10 dark:bg-editorial-teal/10 border border-editorial-teal/20 text-editorial-teal">
+                        <span class="w-2 h-2 bg-editorial-teal rounded-full animate-pulse-soft"></span>
+                        <span class="text-xs font-medium tracking-wide">AI Ready</span>
+                    </div>
+                    <!-- User Avatar -->
+                    <div class="w-10 h-10 rounded-full bg-accent flex items-center justify-center text-white font-semibold shadow-glow">
+                        {{ current_user.username[0].upper() }}
+                    </div>
+                </div>
+            </header>
+
+            <!-- Content Area -->
+            <main class="flex-1 overflow-y-auto p-8">
+                <div class="max-w-7xl mx-auto">
+                    {% block content %}{% endblock %}
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <script>
+        const themeToggle = document.getElementById('themeToggle');
+        const sunIcon = document.getElementById('sunIcon');
+        const moonIcon = document.getElementById('moonIcon');
+        const circle = document.getElementById('themeToggleCircle');
+        const html = document.documentElement;
+
+        function updateTheme() {
+            const isDark = localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches);
+            if (isDark) {
+                html.classList.add('dark');
+                sunIcon.classList.remove('hidden');
+                moonIcon.classList.add('hidden');
+                circle.style.transform = 'translateX(16px)';
+            } else {
+                html.classList.remove('dark');
+                sunIcon.classList.add('hidden');
+                moonIcon.classList.remove('hidden');
+                circle.style.transform = 'translateX(0)';
+            }
+        }
+
+        themeToggle.addEventListener('click', () => {
+            localStorage.theme = html.classList.contains('dark') ? 'light' : 'dark';
+            updateTheme();
+        });
+
+        updateTheme();
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+    <script src="{{ url_for('static', filename='advanced-features.js') }}"></script>
+</body>
+</html>

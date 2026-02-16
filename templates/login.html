@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Welcome Back | BookGPT</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['DM Sans', 'sans-serif'],
+                        display: ['Playfair Display', 'serif'],
+                    },
+                    colors: {
+                        canvas: {
+                            light: '#f8f6f1',
+                            dark: '#0d0d0d',
+                        },
+                        surface: {
+                            50: '#fdfcfa',
+                            100: '#f8f6f1',
+                            200: '#ebe7de',
+                        },
+                        accent: {
+                            DEFAULT: '#e85d4c',
+                            muted: '#c44d3f',
+                            light: '#f25c4a',
+                        },
+                    },
+                    boxShadow: {
+                        'soft': '0 2px 40px -8px rgba(0, 0, 0, 0.08)',
+                        'glow': '0 0 40px -10px rgba(232, 93, 76, 0.3)',
+                    },
+                    animation: {
+                        'fade-in': 'fadeIn 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+                        'slide-up': 'slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+                        'slide-up-delay': 'slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.15s forwards',
+                        'slide-up-delay-2': 'slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.3s forwards',
+                    },
+                    keyframes: {
+                        fadeIn: {
+                            '0%': { opacity: '0' },
+                            '100%': { opacity: '1' },
+                        },
+                        slideUp: {
+                            '0%': { opacity: '0', transform: 'translateY(30px)' },
+                            '100%': { opacity: '1', transform: 'translateY(0)' },
+                        },
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .noise-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 9999;
+            opacity: 0.04;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+        }
+
+        /* Input styling */
+        .input-editorial {
+            transition: all 0.3s ease;
+            background: rgba(235, 231, 222, 0.5);
+        }
+        
+        .input-editorial:focus {
+            background: rgba(235, 231, 222, 0.8);
+            box-shadow: 0 0 0 3px rgba(232, 93, 76, 0.1);
+        }
+
+        .dark .input-editorial {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .dark .input-editorial:focus {
+            background: rgba(255, 255, 255, 0.1);
+            box-shadow: 0 0 0 3px rgba(232, 93, 76, 0.2);
+        }
+    </style>
+</head>
+<body class="h-full bg-canvas-light dark:bg-canvas-dark flex items-center justify-center p-6 min-h-screen">
+    <div class="noise-overlay"></div>
+    
+    <!-- Ambient glow -->
+    <div class="fixed top-1/4 -left-32 w-96 h-96 bg-accent/5 rounded-full blur-3xl animate-pulse-soft"></div>
+    <div class="fixed bottom-1/4 -right-32 w-96 h-96 bg-editorial-teal/5 rounded-full blur-3xl animate-pulse-soft" style="animation-delay: 1s;"></div>
+    
+    <div class="w-full max-w-md relative z-10">
+        <!-- Brand & Header -->
+        <div class="text-center mb-10 animate-fade-in">
+            <div class="w-16 h-16 bg-accent rounded-2xl flex items-center justify-center shadow-glow mx-auto mb-6 animate-float">
+                <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                </svg>
+            </div>
+            <h1 class="font-display text-3xl font-semibold text-slate-900 dark:text-white mb-2 tracking-tight">Welcome Back</h1>
+            <p class="text-slate-500 dark:text-slate-400 font-medium">Sign in to continue your writing journey</p>
+        </div>
+
+        <!-- Login Card -->
+        <div class="bg-surface-50 dark:bg-surface-900/50 backdrop-blur-xl rounded-3xl p-10 shadow-soft border border-surface-200 dark:border-white/5 animate-slide-up">
+            {% with messages = get_flashed_messages() %}
+              {% if messages %}
+                {% for message in messages %}
+                  <div class="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border-l-3 border-accent text-red-700 dark:text-red-400 text-sm font-medium rounded-r-xl animate-slide-up-delay-2">{{ message }}</div>
+                {% endfor %}
+              {% endif %}
+            {% endwith %}
+
+            <form method="POST" class="space-y-5 animate-slide-up-delay" style="animation-delay: 0.2s;">
+                <!-- Username -->
+                <div class="space-y-1.5">
+                    <label class="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider ml-1">Username</label>
+                    <input type="text" name="username" required 
+                        class="input-editorial w-full px-5 py-4 rounded-xl text-slate-900 dark:text-white font-medium outline-none"
+                        placeholder="Enter your username">
+                </div>
+                
+                <!-- Password -->
+                <div class="space-y-1.5">
+                    <label class="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider ml-1">Password</label>
+                    <input type="password" name="password" required 
+                        class="input-editorial w-full px-5 py-4 rounded-xl text-slate-900 dark:text-white font-medium outline-none"
+                        placeholder="Enter your password">
+                </div>
+                
+                <!-- Submit Button -->
+                <button type="submit" class="w-full py-4 bg-accent hover:bg-accent-muted text-white rounded-xl font-semibold shadow-glow transition-all hover:-translate-y-0.5 active:translate-y-0 mt-2">
+                    Sign In
+                </button>
+            </form>
+        </div>
+
+        <!-- Register Link -->
+        <p class="text-center mt-8 text-sm font-medium text-slate-500 dark:text-slate-400 animate-slide-up-delay-2" style="animation-delay: 0.35s;">
+            Don't have an account? <a href="/register" class="text-accent hover:text-accent-muted font-semibold transition-colors">Create one</a>
+        </p>
+    </div>
+</body>
+</html>

@@ -1,0 +1,384 @@
+/* 
+ * BookGPT - Digital Editorial Design System 
+ * Custom refinements to complement Tailwind CSS
+ */
+
+:root {
+    --sidebar-width: 288px;
+}
+
+/* Smooth transitions for theme switching */
+* {
+    transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease, box-shadow 0.3s ease;
+}
+
+/* Custom Scrollbar - Editorial Style */
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.1);
+    border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 0, 0, 0.2);
+}
+
+.dark ::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+/* Typography refinements */
+body {
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+/* ===== Animations ===== */
+
+/* Fade In */
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.animate-fade-in {
+    animation: fadeIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Slide Up */
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.animate-slide-up {
+    animation: slideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Slide In */
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateX(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+.animate-slide-in {
+    animation: slideIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Float Animation */
+@keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-8px); }
+}
+
+.animate-float {
+    animation: float 6s ease-in-out infinite;
+}
+
+/* Pulse Soft */
+@keyframes pulseSoft {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+}
+
+.animate-pulse-soft {
+    animation: pulseSoft 2s ease-in-out infinite;
+}
+
+/* Shimmer Effect */
+.animate-shimmer {
+    background: linear-gradient(90deg, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0.05) 50%, rgba(0, 0, 0, 0) 100%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+}
+
+@keyframes shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+/* ===== Project Card Styles ===== */
+
+.project-card {
+    position: relative;
+    transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    overflow: hidden;
+}
+
+.project-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(232, 93, 76, 0.03) 0%, transparent 50%);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.project-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 20px 40px -8px rgba(0, 0, 0, 0.1);
+}
+
+.project-card:hover::before {
+    opacity: 1;
+}
+
+.dark .project-card:hover {
+    box-shadow: 0 20px 40px -8px rgba(0, 0, 0, 0.4);
+}
+
+/* ===== Status Badges ===== */
+
+.status-badge {
+    @apply px-2.5 py-0.5 rounded-full text-xs font-medium uppercase tracking-wide;
+}
+
+.status-active {
+    @apply bg-accent/10 text-accent;
+}
+
+.status-completed {
+    @apply bg-editorial-teal/10 text-editorial-teal;
+}
+
+.status-draft {
+    @apply bg-surface-200 dark:bg-white/10 text-slate-600 dark:text-slate-400;
+}
+
+/* ===== Markdown Content Styling ===== */
+
+.markdown-preview {
+    @apply text-slate-600 dark:text-slate-400 leading-relaxed;
+}
+
+.markdown-preview h1, 
+.markdown-preview h2, 
+.markdown-preview h3 {
+    @apply text-slate-900 dark:text-white font-display font-medium mt-6 mb-4;
+}
+
+.markdown-preview p {
+    @apply mb-4;
+}
+
+.markdown-preview ul {
+    @apply list-disc ml-5 mb-4;
+}
+
+.markdown-preview ol {
+    @apply list-decimal ml-5 mb-4;
+}
+
+/* ===== Form Inputs ===== */
+
+.input-editorial {
+    transition: all 0.3s ease;
+    background: rgba(235, 231, 222, 0.5);
+}
+
+.input-editorial:focus {
+    background: rgba(235, 231, 222, 0.8);
+    box-shadow: 0 0 0 3px rgba(232, 93, 76, 0.1);
+}
+
+.dark .input-editorial {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.dark .input-editorial:focus {
+    background: rgba(255, 255, 255, 0.1);
+    box-shadow: 0 0 0 3px rgba(232, 93, 76, 0.2);
+}
+
+/* ===== Loading Spinner ===== */
+
+.spinner-editorial {
+    border: 2px solid rgba(0, 0, 0, 0.05);
+    border-top: 2px solid #e85d4c;
+    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* ===== Notification Styles ===== */
+
+.notification-item {
+    @apply transform transition-all duration-300 ease-out;
+}
+
+.notification-success {
+    @apply bg-editorial-teal/10 border border-editorial-teal/20 text-editorial-teal;
+}
+
+.notification-error {
+    @apply bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-900/30 text-red-600 dark:text-red-400;
+}
+
+.notification-info {
+    @apply bg-surface-100 dark:bg-white/5 border border-surface-200 dark:border-white/10 text-slate-600 dark:text-slate-300;
+}
+
+/* Fade In/Out */
+.fade-in {
+    animation: fadeIn 0.3s ease-out forwards;
+}
+
+.fade-out {
+    animation: fadeOut 0.3s ease-in forwards;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeOut {
+    from { opacity: 1; transform: translateY(0); }
+    to { opacity: 0; transform: translateY(-10px); }
+}
+
+/* ===== Sidebar Active State ===== */
+
+.sidebar-active {
+    @apply bg-surface-100 dark:bg-white/5 text-slate-900 dark:text-white;
+}
+
+/* ===== Tooltip Styles ===== */
+
+.tooltip {
+    @apply relative;
+}
+
+.tooltip::after {
+    content: attr(data-tooltip);
+    @apply absolute left-full ml-2 top-1/2 -translate-y-1/2 px-2 py-1 bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-xs font-medium rounded opacity-0 pointer-events-none transition-opacity whitespace-nowrap z-50;
+}
+
+.tooltip:hover::after {
+    @apply opacity-100;
+}
+
+/* ===== Modal Backdrop ===== */
+
+.modal-backdrop {
+    @apply fixed inset-0 bg-slate-900/50 backdrop-blur-sm;
+    animation: fadeIn 0.2s ease-out;
+}
+
+.modal-content {
+    animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* ===== Selection ===== */
+
+::selection {
+    @apply bg-accent/20 text-accent;
+}
+
+/* ===== Focus Ring ===== */
+
+.focus-ring {
+    @apply focus:outline-none focus:ring-2 focus:ring-accent/30 focus:ring-offset-2 dark:focus:ring-offset-slate-900;
+}
+
+/* ===== Progress Bar ===== */
+
+.progress-bar {
+    @apply h-1 bg-surface-200 dark:bg-white/10 rounded-full overflow-hidden;
+}
+
+.progress-fill {
+    @apply h-full bg-accent transition-all duration-500 ease-out;
+}
+
+/* ===== Skeleton Loading ===== */
+
+.skeleton {
+    @apply bg-surface-200 dark:bg-white/10 rounded animate-shimmer;
+}
+
+/* ===== Link Hover Effect ===== */
+
+.link-underline {
+    position: relative;
+}
+
+.link-underline::after {
+    content: '';
+    position: absolute;
+    bottom: -2px;
+    left: 0;
+    width: 0;
+    height: 1px;
+    background: currentColor;
+    transition: width 0.3s ease;
+}
+
+.link-underline:hover::after {
+    width: 100%;
+}
+
+/* ===== Badge Pill ===== */
+
+.badge-pill {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+}
+
+.badge-pill-primary {
+    @apply bg-accent/10 text-accent;
+}
+
+.badge-pill-secondary {
+    @apply bg-surface-200 dark:bg-white/10 text-slate-600 dark:text-slate-400;
+}
+
+.badge-pill-success {
+    @apply bg-editorial-teal/10 text-editorial-teal;
+}
+
+/* ===== Card Hover Effects ===== */
+
+.card-hover {
+    @apply transition-all duration-300 ease-out;
+}
+
+.card-hover:hover {
+    @apply -translate-y-1 shadow-lg;
+}
+
+/* ===== Text Gradient ===== */
+
+.text-gradient {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-accent to-accent-muted;
+}
