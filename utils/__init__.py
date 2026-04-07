@@ -1,10 +1,9 @@
 """
 Utils package for BookGPT.
 
-This package provides utility modules for storage and LLM client functionality.
+This package provides utility modules for database and LLM client functionality.
 """
 
-from .storage import BookStorage
 from .llm_client import (
     LLMClient,
     LLMConfig,
@@ -19,7 +18,6 @@ from .llm_client import (
 )
 
 __all__ = [
-    'BookStorage',
     'LLMClient',
     'LLMConfig',
     'LLMResponse',

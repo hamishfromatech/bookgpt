@@ -2,6 +2,9 @@
 
 # Web Framework
 flask>=2.3.0
+flask-cors>=4.0.0
+flask-sqlalchemy>=3.0.0
+flask-login>=0.6.0
 
 # OpenAI Python SDK (supports custom base URLs)
 openai>=1.0.0
@@ -12,6 +15,18 @@ httpx>=0.25.0
 # Utilities
 python-dotenv>=1.0.0
 werkzeug>=2.3.0
+
+# PDF Generation
+reportlab>=4.0.0
+
+# EPUB Generation (optional)
+ebooklib>=0.18
+
+# DOCX Generation (optional)
+python-docx>=1.1.0
+
+# Payment processing
+stripe>=7.0.0
 
 # Optional: For async support
 anyio>=4.0.0

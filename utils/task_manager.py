@@ -117,32 +117,50 @@ class TaskManager:
             logger.info(f"Starting task {task.id} of type {task.type}")
             
             # Execute task based on type
-            if task.type == 'write_book':
+            if task.type in ('write_book', 'resume_book'):
                 # Import here to avoid circular imports
                 from utils.agent_factory import get_agent
-                
+
                 # Get project details - use the same database as the main app
                 from utils.database import BookDatabase
                 db = BookDatabase()
                 project = db.get_project(task.project_id)
-                
+
                 if not project:
                     logger.error(f"Project {task.project_id} not found in database")
                     raise Exception(f"Project {task.project_id} not found")
-                
+
                 logger.info(f"Found project {task.project_id}: {project.title}")
-                
+
                 # Get global agent instance
                 agent = get_agent()
-                
+
                 # Update project status to writing
                 project.status = 'writing'
                 project.updated_at = datetime.now()
                 db.save_project(project)
                 logger.info(f"Updated project {task.project_id} status to writing")
-                
-                self._execute_book_writing(task, agent, project)
-                
+
+                # Use resume method for resume_book tasks
+                if task.type == 'resume_book':
+                    result = agent.resume_writing_process(task.project_id)
+                    if result.get('success'):
+                        task.status = TaskStatus.COMPLETED
+                        task.completed_at = datetime.now()
+                        task.message = result.get('message', 'Resume completed')
+                        task.result = result
+                        # Update project status
+                        project.status = result.get('phase', 'completed')
+                        if project.status == 'completed':
+                            project.completed_at = datetime.now()
+                        project.updated_at = datetime.now()
+                        db.save_project(project)
+                    else:
+                        # Fall back to standard execution if resume fails
+                        self._execute_book_writing(task, agent, project)
+                else:
+                    self._execute_book_writing(task, agent, project)
+
                 # Update project status on completion
                 if task.status == TaskStatus.COMPLETED:
                     project.status = 'completed'
@@ -151,7 +169,7 @@ class TaskManager:
                     project.status = 'failed'
                 project.updated_at = datetime.now()
                 db.save_project(project)
-                
+
             else:
                 raise Exception(f"Unknown task type: {task.type}")
             

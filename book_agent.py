@@ -8,14 +8,16 @@ following the patterns from OpenAI's function calling and coding agent templates
 import json
 import uuid
 import os
-from typing import List, Dict, Any, Optional, Generator
+import time
+from typing import List, Dict, Any, Optional, Generator, Callable
 from datetime import datetime
 import logging
+from functools import wraps
 
 from utils.llm_client import (
-    LLMClient, 
-    LLMConfig, 
-    LLMResponse, 
+    LLMClient,
+    LLMConfig,
+    LLMResponse,
     ToolDefinition,
     ChatMessage,
     AgentMode,
@@ -27,6 +29,7 @@ from utils.llm_client import (
 )
 
 
+
 from utils.database import BookDatabase
 from models.book_model import BookProject
 
@@ -34,6 +37,44 @@ from models.book_model import BookProject
 from tools.file_tools import BaseTool
 
 logger = logging.getLogger(__name__)
+
+
+# =============================================================================
+# RETRY LOGIC
+# =============================================================================
+
+def retry_with_backoff(max_retries: int = 3, base_delay: float = 1.0, max_delay: float = 30.0,
+                       exceptions: tuple = (Exception,)):
+    """
+    Decorator to retry a function with exponential backoff.
+
+    Args:
+        max_retries: Maximum number of retry attempts
+        base_delay: Initial delay in seconds
+        max_delay: Maximum delay in seconds
+        exceptions: Tuple of exceptions to catch
+    """
+    def decorator(func: Callable) -> Callable:
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            last_exception = None
+
+            for attempt in range(max_retries + 1):
+                try:
+                    return func(*args, **kwargs)
+                except exceptions as e:
+                    last_exception = e
+                    if attempt < max_retries:
+                        delay = min(base_delay * (2 ** attempt), max_delay)
+                        logger.warning(f"Attempt {attempt + 1} failed: {e}. Retrying in {delay}s...")
+                        time.sleep(delay)
+                    else:
+                        logger.error(f"All {max_retries + 1} attempts failed for {func.__name__}")
+                        raise
+
+            raise last_exception
+        return wrapper
+    return decorator
 
 
 class ToolCall:
@@ -220,6 +261,68 @@ Focus on:
         self.db.save_project(project)
         logger.info(f"Project state saved to database for: {project_id}")
 
+    def resume_writing_process(self, project_id: str) -> Dict[str, Any]:
+        """
+        Resume a writing process from where it left off.
+
+        This method is called when restarting a project that was interrupted.
+        It loads the saved state and determines which phase to resume from.
+        """
+        try:
+            # Load project from database
+            project = self.db.get_project(project_id)
+            if not project:
+                return {'success': False, 'error': 'Project not found'}
+
+            logger.info(f"Resuming writing process for project: {project_id}")
+
+            # Initialize state from saved project
+            self.project_states[project_id] = {
+                'project': project,
+                'current_phase': project.status,
+                'chapter_count': project.chapters_completed,
+                'total_words': project.total_words,
+                'iterations': 0,
+                'completed': project.status == 'completed',
+                'errors': [],
+                'conversation_history': project.metadata.get('conversation_history', []),
+                'outline': project.outline or {},
+                'research_materials': project.research_materials or {}
+            }
+
+            state = self.project_states[project_id]
+
+            # Determine resume point based on status
+            if project.status == 'completed':
+                return {
+                    'success': True,
+                    'message': 'Project already completed',
+                    'phase': 'completed'
+                }
+
+            if project.status == 'writing':
+                # Resume writing from last chapter
+                logger.info(f"Resuming writing from chapter {state['chapter_count'] + 1}")
+                return self._run_agentic_loop(project_id, resume=True)
+
+            elif project.status == 'editing':
+                # Resume editing
+                logger.info("Resuming editing phase")
+                return self._run_agentic_loop(project_id, resume=True)
+
+            else:
+                # Start fresh or from planning
+                logger.info(f"Starting fresh from phase: {project.status}")
+                return self.start_writing_process(project)
+
+        except Exception as e:
+            logger.error(f"Error resuming writing process: {e}")
+            return {
+                'success': False,
+                'error': str(e),
+                'phase': 'resume'
+            }
+
     def set_progress_callback(self, callback):
         """Set a callback function to receive progress updates."""
         self.progress_callback = callback
@@ -401,6 +504,7 @@ Focus on:
                 'iterations': state['iterations']
             }
     
+    @retry_with_backoff(max_retries=2, base_delay=2.0, max_delay=30.0)
     def _execute_planning_phase(self, project_id: str) -> Dict[str, Any]:
         """Execute the planning phase using LLM."""
         state = self.project_states[project_id]
@@ -598,6 +702,7 @@ This research will inform the writing process."""}
                 'error': f'Writing phase failed: {str(e)}'
             }
     
+    @retry_with_backoff(max_retries=3, base_delay=2.0, max_delay=60.0)
     def _write_chapter_with_llm(self, project_id: str) -> Dict[str, Any]:
         """Write a chapter using the LLM."""
         state = self.project_states[project_id]
@@ -1360,4 +1465,157 @@ Paths are relative to the project root (e.g., "chapters/chapter_1.md")."""
                 'type': 'error',
                 'data': f'Chat error: {str(e)}'
             }
+
+    def generate_pdf_book(self, project_id: str) -> Optional[bytes]:
+        """
+        Generate a PDF of the book with proper formatting.
+
+        Args:
+            project_id: The project identifier
+
+        Returns:
+            PDF content as bytes, or None if generation fails
+        """
+        try:
+            from reportlab.lib.pagesizes import letter, A4
+            from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+            from reportlab.lib.units import inch
+            from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak
+            from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY
+            from io import BytesIO
+
+            if not self._ensure_project_state(project_id):
+                return None
+
+            state = self.project_states[project_id]
+            project = state['project']
+
+            # Create PDF in memory
+            buffer = BytesIO()
+
+            # Create the PDF document
+            doc = SimpleDocTemplate(
+                buffer,
+                pagesize=letter,
+                rightMargin=72,
+                leftMargin=72,
+                topMargin=72,
+                bottomMargin=72
+            )
+
+            # Get styles
+            styles = getSampleStyleSheet()
+
+            # Create custom styles
+            title_style = ParagraphStyle(
+                'BookTitle',
+                parent=styles['Heading1'],
+                fontSize=24,
+                alignment=TA_CENTER,
+                spaceAfter=30
+            )
+
+            chapter_style = ParagraphStyle(
+                'ChapterTitle',
+                parent=styles['Heading2'],
+                fontSize=18,
+                spaceBefore=20,
+                spaceAfter=12
+            )
+
+            body_style = ParagraphStyle(
+                'BookBody',
+                parent=styles['Normal'],
+                fontSize=11,
+                alignment=TA_JUSTIFY,
+                spaceAfter=12,
+                leading=14
+            )
+
+            # Build the story (content)
+            story = []
+
+            # Title page
+            story.append(Spacer(1, 2*inch))
+            story.append(Paragraph(project.title, title_style))
+            story.append(Spacer(1, 0.5*inch))
+            story.append(Paragraph(f"<i>{project.genre}</i>", styles['Normal']))
+            story.append(Spacer(1, 0.3*inch))
+            story.append(Paragraph(f"Target Length: {project.target_length:,} words", styles['Normal']))
+            story.append(Paragraph(f"Writing Style: {project.writing_style}", styles['Normal']))
+            story.append(Paragraph(f"Generated on: {datetime.now().strftime('%B %d, %Y')}", styles['Normal']))
+            story.append(PageBreak())
+
+            # Table of Contents placeholder
+            story.append(Paragraph("Table of Contents", styles['Heading1']))
+            story.append(Spacer(1, 0.3*inch))
+
+            # Read all chapters and add to TOC
+            chapters = []
+            for i in range(1, state['chapter_count'] + 1):
+                chapter_result = self.tools['read_file'].execute(
+                    project_id=project_id,
+                    path=f"chapters/chapter_{i}.md"
+                )
+                if chapter_result.get('success'):
+                    chapters.append({
+                        'number': i,
+                        'content': chapter_result['content']
+                    })
+                    story.append(Paragraph(f"Chapter {i}", styles['Normal']))
+
+            story.append(PageBreak())
+
+            # Add chapters
+            for chapter in chapters:
+                story.append(Paragraph(f"Chapter {chapter['number']}", chapter_style))
+                story.append(Spacer(1, 0.2*inch))
+
+                # Parse content - remove line numbers if present and format
+                content = chapter['content']
+                # Clean up the content (remove line number prefixes)
+                lines = []
+                for line in content.split('\n'):
+                    # Remove line number prefixes like "   1 | "
+                    if '|' in line and line.strip().split('|')[0].strip().isdigit():
+                        line = line.split('|', 1)[1].strip() if '|' in line else line
+                    lines.append(line)
+                clean_content = '\n'.join(lines)
+
+                # Split into paragraphs and add
+                paragraphs = clean_content.split('\n\n')
+                for para in paragraphs:
+                    if para.strip():
+                        # Escape special characters for reportlab
+                        para = para.replace('&', '&amp;')
+                        para = para.replace('<', '&lt;')
+                        para = para.replace('>', '&gt;')
+                        para = para.replace('\n', '<br/>')
+                        try:
+                            story.append(Paragraph(para, body_style))
+                        except Exception as e:
+                            # If paragraph fails, add as preformatted
+                            story.append(Paragraph(f"<pre>{para}</pre>", body_style))
+
+                story.append(PageBreak())
+
+            # Build the PDF
+            doc.build(story)
+
+            # Get the PDF bytes
+            pdf_bytes = buffer.getvalue()
+            buffer.close()
+
+            logger.info(f"Generated PDF for project {project_id}: {len(pdf_bytes)} bytes")
+            return pdf_bytes
+
+        except ImportError as e:
+            logger.error(f"ReportLab not installed: {e}")
+            logger.error("Install with: pip install reportlab")
+            return None
+        except Exception as e:
+            logger.error(f"Error generating PDF: {e}")
+            import traceback
+            logger.error(f"Full traceback: {traceback.format_exc()}")
+            return None
 

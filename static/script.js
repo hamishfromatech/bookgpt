@@ -252,8 +252,10 @@ function createProjectCard(project) {
             <button onclick="viewProject('${project.id}')" class="py-2.5 px-4 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-lg font-medium text-sm hover:opacity-90 transition-all">
                 Details
             </button>
-            ${status === 'created' ? 
+            ${status === 'created' ?
                 `<button onclick="startWriting('${project.id}')" class="py-2.5 px-4 bg-accent hover:bg-accent-muted text-white rounded-lg font-medium text-sm transition-all">Start</button>` :
+            (status === 'failed' || status === 'stopped') ?
+                `<button onclick="resumeWriting('${project.id}')" class="py-2.5 px-4 bg-amber-500 hover:bg-amber-600 text-white rounded-lg font-medium text-sm transition-all">Resume</button>` :
                 `<button onclick="showProgressInterface('${project.id}')" class="py-2.5 px-4 bg-editorial-teal hover:bg-editorial-teal/80 text-white rounded-lg font-medium text-sm transition-all">Monitor</button>`
             }
         </div>
@@ -532,6 +534,16 @@ function updateProgressUI(data) {
             inviteEl.classList.add('hidden');
         }
     }
+
+    // Resume button visibility (for failed/stopped projects)
+    const resumeButton = document.getElementById('resumeButton');
+    if (resumeButton) {
+        if (data.status === 'failed' || data.status === 'stopped') {
+            resumeButton.classList.remove('hidden');
+        } else {
+            resumeButton.classList.add('hidden');
+        }
+    }
     
     // Update phases - aligned with app.py _get_phase_order
     // 0: initializing, 1: planning, 2: research, 3: writing, 4: editing, 5: refining
@@ -655,6 +667,57 @@ async function startWriting(projectId) {
             loadProjects();
         }
     } catch (e) { showNotification('Error starting agent', 'error'); }
+    finally { showLoading(false); }
+}
+
+async function resumeWriting(projectId) {
+    try {
+        showLoading(true, 'Resuming writing process...');
+        const response = await fetch(`/api/projects/${projectId}/resume`, { method: 'POST' });
+        const data = await response.json();
+        if (data.success) {
+            showProgressInterface(projectId);
+            loadProjects();
+            showNotification('Writing resumed', 'success');
+        } else {
+            showNotification(data.error || 'Error resuming', 'error');
+        }
+    } catch (e) {
+        showNotification('Error resuming project', 'error');
+    }
+    finally { showLoading(false); }
+}
+
+// Resume from monitor page - resumes and continues monitoring
+async function resumeProject() {
+    if (!currentProgressProjectId) return;
+    try {
+        showLoading(true, 'Resuming writing process...');
+        const response = await fetch(`/api/projects/${currentProgressProjectId}/resume`, { method: 'POST' });
+        const data = await response.json();
+        if (data.success) {
+            showNotification('Writing resumed', 'success');
+            // Re-enable progress tracking
+            startProgressTracking(currentProgressProjectId);
+        } else {
+            showNotification(data.error || 'Error resuming', 'error');
+        }
+    } catch (e) {
+        showNotification('Error resuming project', 'error');
+    }
+    finally { showLoading(false); }
+}
+
+async function stopWriting(projectId) {
+    try {
+        showLoading(true, 'Stopping...');
+        const response = await fetch(`/api/projects/${projectId}/stop`, { method: 'POST' });
+        const data = await response.json();
+        if (data.success) {
+            loadProjects();
+            showNotification('Writing stopped', 'success');
+        }
+    } catch (e) { showNotification('Error stopping project', 'error'); }
     finally { showLoading(false); }
 }
 
