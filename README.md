@@ -2,176 +2,190 @@
 
 An autonomous AI agent that writes complete books using OpenAI (or OpenAI-compatible APIs) with sophisticated tool calling patterns. Modeled after professional coding agents like Cursor, Windsurf, Aider, and OpenAI Codex.
 
-## 🚀 Features
+## Quick Links
 
+- **[Installation Guide](docs/INSTALLATION.md)** - Step-by-step setup for beginners
+- [Expert Mode Guide](docs/expert-mode.md) - Advanced configuration
+- [Stripe Setup](docs/STRIPE_SETUP.md) - Billing integration
+- [Walkthrough](docs/walkthrough.md) - Full usage guide
+
+## Features
+
+### Core Features
 - **🤖 Autonomous Writing**: Complete book generation from title to final draft
 - **🛠️ Professional Tools**: File operations modeled after coding agents
-- **🔄 Agentic Loop**: Planning → Research → Writing → Editing phases
-- **🌐 Multiple LLM Support**: OpenAI, Ollama, LM Studio, Azure, custom endpoints
-- **💾 File Management**: Read, write, edit, search files with professional tools
+- **🔄 Agentic Loop**: Planning → Research → Writing → Editing → Refining phases
+- **🌐 Multiple LLM Support**: OpenAI, Ollama, LM Studio, custom endpoints
 - **📚 Structured Output**: Organized chapters with outlines and research notes
 
-## 🏗️ Architecture
+### Advanced Features
+- **👤 User Authentication**: Secure login system with password management
+- **💳 Stripe Billing**: Credit-based system with subscription support
+- **📊 Real-time Monitoring**: Live progress dashboard with activity feeds
+- **📝 Chapter Versioning**: Track and restore previous chapter versions
+- **⏸️ Pause & Resume**: Stop and resume writing sessions anytime
+- **💬 Agent Chat**: Interactive chat to guide the writing process
+- **📥 Multiple Export Formats**: PDF, EPUB, DOCX, and plain text
+- **🎨 Character Management**: Create and track characters
+- **📖 Plot Tracking**: Manage plot points and story arcs
+- **🔒 Rate Limiting**: API protection with configurable limits
+- **📈 Project Analytics**: Track writing progress and statistics
 
-### Core Components
+## Installation
 
+### Quick Start (Recommended)
+
+Use the automated setup script:
+
+**Windows:**
+```bash
+quickstart.bat
 ```
-BookGPT/
-├── book_agent.py          # Main agentic system
-├── tools/                 # Professional file & research tools
-│   ├── file_tools.py      # File operations (read, write, edit, search)
-│   ├── research_tools.py  # Research & outline generation
-│   └── __init__.py
-├── utils/
-│   ├── llm_client.py      # LLM client with OpenAI/custom support
-│   └── storage.py         # Project storage
-├── models/
-│   └── book_model.py      # Book project data model
-└── app.py                 # Flask web interface
+
+**Mac/Linux:**
+```bash
+./quickstart.sh
 ```
 
-### Tools Inspired by Coding Agents
+The script will:
+1. Check/install Python
+2. Create a virtual environment
+3. Install dependencies
+4. Guide you through AI provider setup (OpenAI or Ollama)
+5. Start the application
 
-| Tool | Based On | Function |
-|------|----------|----------|
-| `ReadFileTool` | Cursor/RooCode | Read files with line numbers and ranges |
-| `WriteFileTool` | RooCode | Create/overwrite files with auto-dirs |
-| `EditFileTool` | RooCode/Aider | Search & replace with regex support |
-| `ListDirectoryTool` | Cursor | List directories, ignore .git/node_modules |
-| `SearchFilesTool` | Windsurf | Find files by glob patterns |
-| `GrepSearchTool` | RooCode | Search content with context |
-| `DeleteFileTool` | Cursor | Safe file deletion |
+### Manual Installation
 
-## 🛠️ Installation
-
-### Prerequisites
-
-- Python 3.8+
-- OpenAI API key OR local LLM server
-
-### Setup
+See the detailed [Installation Guide](docs/INSTALLATION.md) for step-by-step instructions including troubleshooting.
 
 ```bash
-# Clone the repository
+# Clone and setup
 git clone <repository-url>
 cd bookgpt
-
-# Install dependencies
+python -m venv venv
+source venv/bin/activate  # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 
-# Set up environment
-export OPENAI_API_KEY="your-api-key"
-# OR for local LLM:
-export OPENAI_BASE_URL="http://localhost:1234/v1"
-export LLM_MODEL="local-model"
-```
+# Configure environment
+cp .env.example .env
+# Edit .env with your settings
 
-## 🚀 Quick Start
-
-### 1. Start the Application
-
-```bash
+# Start the app
 python app.py
 ```
 
-The web interface will be available at `http://localhost:5000`
-
-### 2. Configure LLM (Optional)
-
-Use the API to configure different LLM providers:
-
-```bash
-# OpenAI (default)
-curl -X POST http://localhost:5000/api/llm/config \
-  -H "Content-Type: application/json" \
-  -d '{"model": "gpt-4o"}'
-
-# Ollama (local)
-curl -X POST http://localhost:5000/api/llm/preset/ollama \
-  -H "Content-Type: application/json" \
-  -d '{"model": "llama3.2"}'
-
-# LM Studio (local)
-curl -X POST http://localhost:5000/api/llm/preset/lmstudio \
-  -H "Content-Type: application/json"
-```
-
-### 3. Create a Book Project
-
-```bash
-curl -X POST http://localhost:5000/api/projects \
-  -H "Content-Type: application/json" \
-  -d '{
-    "title": "The AI Chronicles",
-    "genre": "science_fiction",
-    "target_length": 50000,
-    "writing_style": "narrative"
-  }'
-```
-
-### 4. Start Writing
-
-```bash
-curl -X POST http://localhost:5000/api/projects/{project_id}/start
-```
-
-## 📖 Usage
+## Usage
 
 ### Web Interface
 
-1. **Create Project**: Set title, genre, target length
-2. **Configure LLM**: Choose OpenAI, Ollama, LM Studio, etc.
-3. **Start Writing**: Autonomous generation begins
-4. **Monitor Progress**: Track chapters and word count
-5. **Download**: Get the final book as text file
+1. Open **http://localhost:6748** in your browser
+2. Login with default credentials:
+   - **Username:** `user`
+   - **Password:** `password`
+3. Create a new book project
+4. Start the writing process
+5. Monitor progress in real-time
+6. Export your finished book
 
-### API Usage
+### The Writing Process
 
-```python
-import requests
+| Phase | Description |
+|-------|-------------|
+| **Planning** | Creates detailed chapter-by-chapter outline |
+| **Research** | Develops world-building, characters, and context |
+| **Writing** | Generates chapters sequentially |
+| **Editing** | Reviews and improves the manuscript |
+| **Refining** | Interactive chat for manual adjustments |
 
-# Create project
-response = requests.post('http://localhost:5000/api/projects', json={
-    'title': 'My Book',
-    'genre': 'fantasy',
-    'target_length': 30000,
-    'writing_style': 'descriptive'
-})
-project_id = response.json()['project']['id']
+### Key Features
 
-# Start writing
-requests.post(f'http://localhost:5000/api/projects/{project_id}/start')
+**Chapter Management**
+- View all chapters with status indicators
+- Reorder chapters via drag-and-drop
+- View version history for each chapter
+- Restore previous versions
+- Set custom prompts per chapter
 
-# Check progress
-progress = requests.get(f'http://localhost:5000/api/projects/{project_id}/progress')
-print(progress.json())
+**Project Tools**
+- **Chat**: Guide the AI with natural language
+- **Characters**: Create and manage character profiles
+- **Plot Points**: Track story beats and arcs
+- **Documents**: Access outlines, research notes, and drafts
+- **Export**: Download in PDF, EPUB, DOCX, or TXT
 
-# Download book
-response = requests.get(f'http://localhost:5000/api/projects/{project_id}/download')
-with open('my_book.txt', 'wb') as f:
-    f.write(response.content)
-```
+**Billing & Credits** (Optional)
+- Stripe integration for paid usage
+- Credit-based system for API costs
+- Subscription management via Stripe Portal
+- Disable billing for unlimited local usage
 
-### Chat with the Agent
+## API Reference
 
-```bash
-curl -X POST http://localhost:5000/api/projects/{project_id}/chat \
-  -H "Content-Type: application/json" \
-  -d '{"message": "Can you make the protagonist more mysterious?"}'
-```
+### Projects
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/projects` | GET | List all projects |
+| `/api/projects` | POST | Create new project |
+| `/api/projects/{id}` | GET | Get project details |
+| `/api/projects/{id}/start` | POST | Start writing |
+| `/api/projects/{id}/stop` | POST | Pause writing |
+| `/api/projects/{id}/resume` | POST | Resume writing |
+| `/api/projects/{id}/progress` | GET | Get progress |
+| `/api/projects/{id}/chat` | POST | Chat with agent |
+| `/api/projects/{id}/download` | GET | Download book |
+| `/api/projects/{id}/export/{format}` | GET | Export (pdf/epub/docx) |
 
-## 🔧 Configuration
+### Chapters
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/projects/{id}/chapters` | GET | List chapters |
+| `/api/projects/{id}/chapters/{num}` | GET | Get chapter content |
+| `/api/projects/{id}/chapters/{num}` | PUT | Update chapter |
+| `/api/projects/{id}/chapters/{num}` | DELETE | Delete chapter |
+| `/api/projects/{id}/chapters/{num}/versions` | GET | Get version history |
+| `/api/projects/{id}/chapters/{num}/versions/{ver}` | GET | Get specific version |
+| `/api/projects/{id}/chapters/{num}/versions/{ver}/restore` | POST | Restore version |
+
+### LLM Configuration
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/llm/config` | GET/POST | Get/update LLM settings |
+| `/api/llm/presets` | GET | Get available presets |
+| `/api/llm/preset/{name}` | POST | Apply preset |
+| `/api/llm/test` | POST | Test connection |
+
+### Billing (Optional)
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/billing/status` | GET | Get billing status |
+| `/api/billing/buy` | POST | Purchase credits |
+| `/api/billing/portal` | POST | Manage subscription |
+| `/api/billing/cancel` | POST | Cancel subscription |
+
+## Configuration
 
 ### Environment Variables
 
 ```bash
-# LLM Configuration
-OPENAI_API_KEY=sk-...           # OpenAI API key
-OPENAI_BASE_URL=https://...     # Custom endpoint (optional)
-LLM_MODEL=gpt-4o                # Model to use
-
 # Flask Configuration
-FLASK_SECRET_KEY=your-secret    # Flask secret key
+FLASK_SECRET_KEY=your-secret-key
+FLASK_DEBUG=true
+PORT=6748
+
+# LLM Configuration
+OPENAI_API_KEY=sk-...
+OPENAI_BASE_URL=https://...     # Optional: custom endpoint
+LLM_MODEL=gpt-4o
+
+# Stripe (Optional - set STRIPE_ENABLED=false to disable)
+STRIPE_ENABLED=false
+STRIPE_PUBLIC_KEY=pk_test_...
+STRIPE_SECRET_KEY=sk_test_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+STRIPE_PRICE_ID=price_...
+
+# Application Domain
+DOMAIN=http://localhost:6748
 ```
 
 ### Supported LLM Providers
@@ -181,118 +195,65 @@ FLASK_SECRET_KEY=your-secret    # Flask secret key
 | OpenAI | Default | gpt-4o, gpt-4o-mini, gpt-3.5-turbo |
 | Ollama | http://localhost:11434/v1 | llama3.2, mistral, codellama |
 | LM Studio | http://localhost:1234/v1 | local-model |
-| Azure OpenAI | Custom | gpt-4o, gpt-4, gpt-35-turbo |
 | Custom | Any | OpenAI-compatible models |
 
-## 🏛️ Agentic Process
+## Project Structure
 
-### Phase 1: Planning
-- AI analyzes book requirements
-- Creates detailed chapter-by-chapter outline
-- Defines character arcs and plot structure
-- **Tool**: `create_outline`
-
-### Phase 2: Research
-- Gathers background information
-- World-building details and context
-- Character research and setting development
-- **Tool**: `conduct_research`
-
-### Phase 3: Writing
-- Generates chapters sequentially
-- Maintains consistency and style
-- Uses planning and research as guidance
-- **Tools**: `write_file`, `read_file`
-
-### Phase 4: Editing
-- Reviews complete manuscript
-- Consistency checks and improvements
-- Final polish and refinement
-- **Tools**: `read_file`, `edit_file`
-
-## 🔍 API Reference
-
-### Projects
-- `GET /api/projects` - List all projects
-- `POST /api/projects` - Create new project
-- `GET /api/projects/{id}` - Get project details
-- `POST /api/projects/{id}/start` - Start writing process
-- `GET /api/projects/{id}/progress` - Get current progress
-- `GET /api/projects/{id}/download` - Download final book
-- `POST /api/projects/{id}/chat` - Chat with agent
-
-### LLM Configuration
-- `GET /api/llm/config` - Get current configuration
-- `POST /api/llm/config` - Update configuration
-- `POST /api/llm/test` - Test connection
-- `GET /api/llm/presets` - Get available presets
-- `POST /api/llm/preset/{name}` - Apply preset
-
-### File Operations
-- `GET /api/tools` - List available tools
-- `GET /api/projects/{id}/files` - List project files
-- `GET /api/projects/{id}/files/{path}` - Read specific file
-
-## 🛠️ Development
-
-### Project Structure
-
-```python
-bookgpt/
-├── book_agent.py          # Main agentic system
-├── tools/                 # Tool implementations
-│   ├── file_tools.py      # File operations (Cursor/Windsurf/Aider style)
-│   └── research_tools.py  # Research and outline tools
-├── utils/
-│   ├── llm_client.py      # LLM client with OpenAI/custom support
-│   └── storage.py         # Project persistence
-├── models/
-│   └── book_model.py      # Book project data model
-└── app.py                 # Flask web application
 ```
+bookgpt/
+├── app.py                      # Flask application
+├── book_agent.py               # Main agentic system
+├── models/
+│   ├── book_model.py           # Book project data model
+│   └── version_model.py        # Chapter versioning
+├── tools/
+│   ├── file_tools.py           # File operations
+│   ├── chapter_tools.py        # Chapter management
+│   └── research_tools.py       # Research and outlines
+├── utils/
+│   ├── llm_client.py           # LLM client
+│   ├── task_manager.py         # Background tasks
+│   ├── database.py             # Data storage
+│   ├── storage.py              # File storage
+│   ├── export.py               # Export functions
+│   └── validation.py           # Input validation
+├── templates/                  # HTML templates
+├── static/                     # CSS, JS, images
+└── docs/                       # Documentation
+```
+
+## Development
 
 ### Adding New Tools
 
 1. Create tool class inheriting from `BaseTool`
-2. Implement required methods: `name()`, `description()`, `parameters_schema()`, `execute()`
-3. Add to `get_all_tools()` in `app.py`
+2. Implement: `name()`, `description()`, `parameters_schema()`, `execute()`
+3. Add to `ALL_TOOLS` in `utils/agent_factory.py`
 
-```python
-class MyTool(BaseTool):
-    def name(self) -> str:
-        return "my_tool"
-    
-    def description(self) -> str:
-        return "Description of what this tool does"
-    
-    def parameters_schema(self) -> Dict[str, Any]:
-        return {
-            "type": "object",
-            "properties": {
-                "param1": {"type": "string", "description": "Parameter description"}
-            },
-            "required": ["param1"]
-        }
-    
-    def execute(self, param1: str) -> Dict[str, Any]:
-        # Tool implementation
-        return {"success": True, "result": f"Processed: {param1}"}
-```
-
-### Testing
+### Running Tests
 
 ```bash
-# Run with debug mode
-python app.py
-
 # Test LLM connection
 curl -X POST http://localhost:5000/api/llm/test
 
-# Test tool operations
+# List available tools
 curl -X GET http://localhost:5000/api/tools
 ```
 
-## 🤝 Contributing
+## Troubleshooting
+
+See the [Installation Guide](docs/INSTALLATION.md) for common issues and solutions.
+
+## Roadmap
+
+- [ ] Multiple language support
+- [ ] Character consistency tracking
+- [ ] Plot coherence validation
+- [ ] Collaborative editing
+- [ ] Advanced customization options
+- [ ] Mobile-responsive interface
+
+## Contributing
 
 1. Fork the repository
 2. Create feature branch (`git checkout -b feature/amazing-feature`)
@@ -300,49 +261,27 @@ curl -X GET http://localhost:5000/api/tools
 4. Push to branch (`git push origin feature/amazing-feature`)
 5. Open Pull Request
 
-## 📄 License
+## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+MIT License - see [LICENSE](LICENSE) for details.
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
 - **OpenAI** for function calling patterns
 - **Cursor** for file operation tool design
 - **Windsurf** for directory listing patterns
-- **Aider** for search and replace functionality
+- **Aider** for search and replace methodology
 - **OpenAI Codex** for agentic loop structure
 
-## 📊 Performance
+## Support
 
-- **Planning Phase**: ~30-60 seconds (outline generation)
-- **Research Phase**: ~20-40 seconds (background research)
-- **Writing Phase**: ~2-5 minutes per chapter (5000 words)
-- **Editing Phase**: ~60-90 seconds (review and polish)
-
-*Times vary by model and content complexity*
-
-## 🔮 Roadmap
-
-- [ ] Multiple language support
-- [ ] Character consistency tracking
-- [ ] Plot coherence validation
-- [ ] Export to multiple formats (PDF, EPUB)
-- [ ] Collaborative editing
-- [ ] Version control for drafts
-- [ ] Advanced customization options
-
-## 📞 Support
-
-For support and questions:
-
-1. Check the [API documentation](#api-reference)
-2. Review [configuration options](#configuration)
-3. Open an issue on GitHub
-4. Join our [Skool Community](https://www.skool.com/open-source-ai-builders-club/about)
+- [Installation Guide](docs/INSTALLATION.md) - Getting started
+- [Expert Mode Guide](docs/expert-mode.md) - Advanced features
+- Open an issue on GitHub
+- Join our [Skool Community](https://www.skool.com/open-source-ai-builders-club/about)
 
 ---
 
-**Built with ❤️ using modern AI agent patterns and professional tool design principles.**
-The A-Tech Corporation PTY LTD.
+**Built with ❤️ using modern AI agent patterns.**
 
-
+*The A-Tech Corporation PTY LTD.*

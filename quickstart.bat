@@ -202,7 +202,7 @@ echo.
 echo [OK] BookGPT will be available at: http://localhost:6748
 echo.
 echo [NOTE] Default login credentials:
-echo   Username: hamish
+echo   Username: user
 echo   Password: password
 echo.
 echo [NOTE] Press Ctrl+C to stop the server

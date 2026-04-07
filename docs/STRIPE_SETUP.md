@@ -42,7 +42,7 @@ To handle successful payments locally, you need the Stripe CLI to forward events
 ## 4. Testing the Flow
 
 1.  Start the app: `python app.py`.
-2.  Log in as `hamish`.
+2.  Log in as `user`.
 3.  Go to the **Profile** page.
 4.  Click **Subscribe Now**.
 5.  Use a Stripe test card (e.g., `4242 4242 4242 4242`) to complete the checkout.

@@ -166,12 +166,12 @@ def load_user(user_id):
 # Create database tables and master admin
 with app.app_context():
     db.create_all()
-    if not User.query.filter_by(username='hamish').first():
-        admin = User(username='hamish', email='admin@bookgpt.ai', must_change_password=True)
+    if not User.query.filter_by(username='user').first():
+        admin = User(username='user', email='admin@bookgpt.ai', must_change_password=True)
         admin.set_password('password')
         db.session.add(admin)
         db.session.commit()
-        logger.info("Master admin account 'hamish' created.")
+        logger.info("Master admin account 'user' created.")
 
 # Initialize services
 storage = BookDatabase()
