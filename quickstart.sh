@@ -161,7 +161,8 @@ echo ""
 echo -e "${BLUE}Ensuring pip is up to date...${NC}"
 pip install --upgrade pip --quiet
 
-# Check if .env exists, create from .env.example if not
+# Check if .env exists and is configured
+SKIP_WIZARD=0
 if [ ! -f .env ]; then
     echo -e "${BLUE}Creating .env file from template...${NC}"
     if [ -f .env.example ]; then
@@ -189,22 +190,28 @@ EOF
     fi
 else
     echo -e "${GREEN}✓ .env file already exists${NC}"
+    # Check if .env has LLM_MODEL configured (indicates wizard already run)
+    if grep -q "^LLM_MODEL=.+" .env 2>/dev/null; then
+        echo -e "${GREEN}✓ .env is already configured - skipping wizard${NC}"
+        SKIP_WIZARD=1
+    fi
 fi
 echo ""
 
-# Wizard: Ask for AI Provider
-echo -e "${BLUE}=====================================${NC}"
-echo -e "${BLUE}       AI Provider Setup${NC}"
-echo -e "${BLUE}=====================================${NC}"
-echo ""
-echo "Which AI provider would you like to use?"
-echo ""
-echo "  1) OpenAI (cloud API - requires API key)"
-echo "  2) Ollama (local LLM - free, runs on your machine)"
-echo ""
+# Wizard: Ask for AI Provider (skip if .env already configured)
+if [ "$SKIP_WIZARD" -eq 0 ]; then
+    echo -e "${BLUE}=====================================${NC}"
+    echo -e "${BLUE}       AI Provider Setup${NC}"
+    echo -e "${BLUE}=====================================${NC}"
+    echo ""
+    echo "Which AI provider would you like to use?"
+    echo ""
+    echo "  1) OpenAI (cloud API - requires API key)"
+    echo "  2) Ollama (local LLM - free, runs on your machine)"
+    echo ""
 
-while true; do
-    read -p "Enter your choice (1 or 2): " provider_choice
+    while true; do
+        read -p "Enter your choice (1 or 2): " provider_choice
     case $provider_choice in
         1)
             echo ""
@@ -254,6 +261,7 @@ while true; do
     esac
 done
 echo ""
+fi
 
 # Generate a random secret key if still using placeholder
 if grep -q "your-secret-key-change-in-production" .env; then

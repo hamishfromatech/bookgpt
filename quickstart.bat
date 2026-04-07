@@ -88,7 +88,8 @@ python -m pip install --upgrade pip --quiet
 echo [OK] pip is up to date
 echo.
 
-REM Check if .env exists, create from .env.example if not
+REM Check if .env exists and is configured
+set SKIP_WIZARD=0
 if not exist .env (
     echo [INFO] Creating .env file from template...
     if exist .env.example (
@@ -114,10 +115,17 @@ if not exist .env (
     )
 ) else (
     echo [OK] .env file already exists
+    REM Check if LLM_MODEL is configured (skip wizard if already set)
+    findstr /B "^LLM_MODEL=." .env >nul 2>&1
+    if not errorlevel 1 (
+        echo [OK] .env is already configured - skipping wizard
+        set SKIP_WIZARD=1
+    )
 )
 echo.
 
-REM Wizard: Ask for AI Provider
+REM Wizard: Ask for AI Provider (skip if .env already configured)
+if "%SKIP_WIZARD%"=="1" goto CONFIG_COMPLETE
 echo =====================================
 echo        AI Provider Setup
 echo =====================================
