@@ -102,8 +102,8 @@ if not exist .env (
         echo PORT=6748>> .env
         echo.>> .env
         echo # OpenAI / LLM Configuration (will be updated below)>> .env
-        echo OPENAI_API_KEY=placeholder>> .env
-        echo LLM_MODEL=placeholder>> .env
+        echo OPENAI_API_KEY=>> .env
+        echo LLM_MODEL=>> .env
         echo.>> .env
         echo # Stripe / Billing Configuration>> .env
         echo STRIPE_ENABLED=false>> .env

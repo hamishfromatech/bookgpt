@@ -1666,20 +1666,25 @@ def test_llm_connection():
         base_url = data.get('base_url')
         model = data.get('model')
 
-        # Get from environment if not provided
+        # First check database for saved settings, then fall back to .env
+        from utils.database import BookDatabase
+        db = BookDatabase()
+        db_settings = db.get_settings('llm')
+
+        # Get from DB or environment if not provided in request
         if not api_key:
-            api_key = os.getenv('OPENAI_API_KEY')
+            api_key = db_settings.get('api_key') if db_settings else os.getenv('OPENAI_API_KEY')
         if not base_url:
-            base_url = os.getenv('OPENAI_BASE_URL')
+            base_url = db_settings.get('base_url') if db_settings else os.getenv('OPENAI_BASE_URL')
         if not model:
-            model = os.getenv('LLM_MODEL', 'gpt-4-turbo-preview')
+            model = db_settings.get('model') if db_settings else os.getenv('LLM_MODEL', 'gpt-4-turbo-preview')
 
         if api_key or base_url:
             # Create a temporary client for testing
             from utils.llm_client import LLMClient, LLMConfig, LLMProvider
             config = LLMConfig(
                 provider=LLMProvider.OPENAI,
-                model=model or os.getenv("LLM_MODEL", "gpt-4-turbo-preview"),
+                model=model or 'gpt-4-turbo-preview',
                 api_key=api_key,
                 base_url=base_url
             )

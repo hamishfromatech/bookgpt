@@ -359,13 +359,29 @@ def get_llm_client() -> LLMClient:
     """Get or create the global LLM client."""
     global _llm_client
     if _llm_client is None:
-        # Load config from env or DB
-        config = LLMConfig(
-            provider=LLMProvider.OPENAI,
-            model=os.getenv("LLM_MODEL", "gpt-4-turbo-preview"),
-            api_key=os.getenv("OPENAI_API_KEY"),
-            base_url=os.getenv("OPENAI_BASE_URL")
-        )
+        # First, try to load config from database (user-saved settings)
+        from utils.database import BookDatabase
+        db = BookDatabase()
+        db_settings = db.get_settings('llm')
+
+        if db_settings:
+            # Use database settings (user configured via UI)
+            config = LLMConfig(
+                provider=LLMProvider.OPENAI,
+                model=db_settings.get('model', 'gpt-4-turbo-preview'),
+                api_key=db_settings.get('api_key'),
+                base_url=db_settings.get('base_url'),
+                temperature=db_settings.get('temperature', 0.7),
+                max_tokens=db_settings.get('max_tokens', 4000)
+            )
+        else:
+            # Fall back to .env file (e.g., from quickstart script)
+            config = LLMConfig(
+                provider=LLMProvider.OPENAI,
+                model=os.getenv("LLM_MODEL", "gpt-4-turbo-preview"),
+                api_key=os.getenv("OPENAI_API_KEY"),
+                base_url=os.getenv("OPENAI_BASE_URL")
+            )
         _llm_client = LLMClient(config)
     return _llm_client
 

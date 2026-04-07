@@ -176,8 +176,8 @@ FLASK_DEBUG=true
 PORT=6748
 
 # OpenAI / LLM Configuration (will be updated below)
-OPENAI_API_KEY=placeholder
-LLM_MODEL=placeholder
+OPENAI_API_KEY=
+LLM_MODEL=
 
 # Stripe / Billing Configuration
 STRIPE_ENABLED=false
