@@ -9,6 +9,8 @@ import re
 from typing import Dict, Any, List, Optional, Tuple
 from functools import wraps
 
+from flask import request, jsonify
+
 
 class ValidationError(Exception):
     """Custom exception for validation errors."""

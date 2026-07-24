@@ -63,15 +63,28 @@ def get_project_path(project_id: str) -> str:
 
 
 def resolve_path(project_id: str, relative_path: str) -> str:
-    """Resolve a relative path to an absolute path within the project."""
-    base_path = get_project_path(project_id)
+    """Resolve a relative path to an absolute path within the project.
+
+    Uses os.path.commonpath for containment so that a project id cannot be a
+    string-prefix of another (e.g. 'projects/abc' vs 'projects/abcdef') and
+    so '../' escapes are rejected. A naive startswith(base_path) check would
+    accept both of those as "inside" the project, leaking across projects.
+    """
+    base_path = os.path.normpath(get_project_path(project_id))
     # Normalize and join paths
     full_path = os.path.normpath(os.path.join(base_path, relative_path))
-    
-    # Security check: ensure the path is within the project directory
-    if not full_path.startswith(os.path.normpath(base_path)):
+
+    # Security check: ensure the resolved path is within the project directory.
+    # commonpath raises ValueError if the paths are on different drives (Windows)
+    # or otherwise incomparable — treat that as an escape attempt.
+    try:
+        common = os.path.commonpath([base_path, full_path])
+    except ValueError:
         raise ValueError(f"Path '{relative_path}' escapes project directory")
-    
+
+    if common != base_path:
+        raise ValueError(f"Path '{relative_path}' escapes project directory")
+
     return full_path
 
 

@@ -7,6 +7,7 @@ import os
 import uuid
 import logging
 import json
+import secrets
 import stripe
 import shutil
 from dotenv import load_dotenv
@@ -28,8 +29,38 @@ logger = logging.getLogger(__name__)
 
 # Initialize Flask app
 app = Flask(__name__)
-CORS(app)
-app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY', 'dev-secret-key-12345')
+
+# --- Secret key -----------------------------------------------------------
+# Never run with a hard-coded fallback. If FLASK_SECRET_KEY is not provided,
+# generate a strong random key and persist it to the instance folder so
+# sessions survive restarts instead of being signed with a public constant.
+_secret_env = os.getenv('FLASK_SECRET_KEY')
+if _secret_env and _secret_env != 'dev-secret-key-12345':
+    app.config['SECRET_KEY'] = _secret_env
+else:
+    _instance_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'instance')
+    os.makedirs(_instance_dir, exist_ok=True)
+    _key_file = os.path.join(_instance_dir, 'flask_secret_key')
+    if os.path.exists(_key_file):
+        with open(_key_file, 'r', encoding='utf-8') as _f:
+            _persisted_key = _f.read().strip()
+    else:
+        _persisted_key = secrets.token_hex(32)
+        with open(_key_file, 'w', encoding='utf-8') as _f:
+            _f.write(_persisted_key)
+        try:
+            os.chmod(_key_file, 0o600)
+        except OSError:
+            pass
+    app.config['SECRET_KEY'] = _persisted_key
+    if not _secret_env:
+        logger.warning("FLASK_SECRET_KEY not set; generated a persistent random key at %s", _key_file)
+
+# Restrict CORS to known origins. Credentials are intentionally NOT enabled,
+# so cross-origin requests cannot ride the session cookie.
+_allowed_origins = os.getenv('CORS_ALLOWED_ORIGINS')
+CORS(app, origins=_allowed_origins.split(',') if _allowed_origins else '*',
+     supports_credentials=False)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///users.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
@@ -162,6 +193,30 @@ class User(UserMixin, db.Model):
 @login_manager.user_loader
 def load_user(user_id):
     return db.session.get(User, user_id)
+
+
+@app.before_request
+def _enforce_password_change():
+    """Block all but password-change/logout endpoints until the password is changed.
+
+    A user flagged ``must_change_password`` has a live session, so without this
+    guard they could bypass the change screen by calling JSON API endpoints
+    directly. Only the change-password and logout routes are permitted.
+    """
+    if not getattr(current_user, 'is_authenticated', False):
+        return None
+    if not getattr(current_user, 'must_change_password', False):
+        return None
+
+    allowed_endpoints = {'change_password', 'logout', 'static'}
+    if request.endpoint in allowed_endpoints:
+        return None
+
+    # For browser navigations, redirect to the change screen; for API/JSON
+    # calls, refuse with 403 so clients get a structured error.
+    if request.path.startswith('/api/') or request.is_json or 'application/json' in (request.headers.get('Accept', '') or ''):
+        return jsonify({'success': False, 'error': 'Password change required'}), 403
+    return redirect(url_for('change_password'))
 
 # Create database tables and master admin
 with app.app_context():
@@ -1268,43 +1323,59 @@ def get_project_statistics(project_id):
         }), 500
 
 @app.route('/api/files/content', methods=['GET'])
+@login_required
 def get_file_content():
-    """Get content of a file."""
+    """Get content of a file within a project the current user owns."""
     try:
-        file_path = request.args.get('path')
-        if not file_path:
+        requested_path = request.args.get('path')
+        if not requested_path:
             return jsonify({
                 'success': False,
                 'error': 'File path is required'
             }), 400
 
-        # Normalize path separators (handle both Windows and Unix style)
-        file_path = file_path.replace('\\', '/').strip()
+        # Strip null bytes and normalize separators early.
+        requested_path = requested_path.replace('\x00', '').replace('\\', '/').strip()
 
-        # Security check - only allow files within projects directory
-        if not file_path.startswith('projects/'):
+        # Require the form "projects/<project_id>/<relative>".
+        parts = requested_path.split('/')
+        if len(parts) < 3 or parts[0] != 'projects' or not parts[1]:
+            return jsonify({'success': False, 'error': 'Access denied'}), 403
+
+        project_id = parts[1]
+
+        # Verify the project exists and is owned by the current user. This is
+        # the real authorization boundary; never rely on path-string checks.
+        project = storage.get_project(project_id)
+        if not project:
+            return jsonify({'success': False, 'error': 'Project not found'}), 404
+        if project.user_id != current_user.id:
+            return jsonify({'success': False, 'error': 'Access denied'}), 403
+
+        # Rebuild the on-disk path and confirm it stays inside this project's
+        # directory using os.path.commonpath (resistant to ../ and prefix
+        # confusion, unlike the old startswith() check).
+        project_dir = os.path.abspath(os.path.join('projects', project_id))
+        relative = '/'.join(parts[2:])
+        candidate = os.path.abspath(os.path.join(project_dir, relative))
+
+        if os.path.commonpath([project_dir, candidate]) != project_dir:
+            return jsonify({'success': False, 'error': 'Access denied'}), 403
+
+        if not os.path.isfile(candidate):
             return jsonify({
                 'success': False,
-                'error': 'Access denied'
-            }), 403
-
-        # Convert to OS-native path for file system operations
-        native_path = os.path.normpath(file_path)
-
-        if not os.path.exists(native_path):
-            return jsonify({
-                'success': False,
-                'error': f'File not found: {file_path}'
+                'error': f'File not found: {requested_path}'
             }), 404
 
-        with open(native_path, 'r', encoding='utf-8') as f:
+        with open(candidate, 'r', encoding='utf-8', errors='replace') as f:
             content = f.read()
 
         return jsonify({
             'success': True,
             'content': content
         })
-        
+
     except Exception as e:
         logger.error(f"Error getting file content: {e}")
         return jsonify({
@@ -1497,7 +1568,12 @@ def chat_with_agent(project_id):
         project = storage.get_project(project_id)
         if not project:
             return jsonify({'success': False, 'error': 'Project not found'}), 404
-        
+
+        # Verify ownership so users cannot chat against (and read) other
+        # users' books via the agent's file tools.
+        if project.user_id != current_user.id:
+            return jsonify({'success': False, 'error': 'Access denied'}), 403
+
         agent = get_agent()
         
         if stream:
@@ -1528,6 +1604,7 @@ def chat_with_agent(project_id):
 # LLM Configuration
 
 @app.route('/api/llm/config', methods=['GET'])
+@login_required
 def get_llm_config():
     """Get current LLM configuration."""
     try:
@@ -1553,6 +1630,7 @@ def get_llm_config():
         }), 500
 
 @app.route('/api/llm/config', methods=['POST'])
+@login_required
 def update_llm_config():
     """Update LLM configuration."""
     try:
@@ -1626,6 +1704,7 @@ def update_llm_config():
         }), 500
 
 @app.route('/api/writing/config', methods=['POST'])
+@login_required
 def update_writing_config():
     """Update writing configuration."""
     try:
@@ -3156,19 +3235,31 @@ def revoke_share(project_id, share_id):
         logger.error(f"Error revoking share: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
-# Comments storage (use database for production)
-project_comments = {}
+# Comments are persisted in the database (see BookDatabase comment methods).
+
+def _verify_project_owner(project_id):
+    """Load a project and confirm current_user owns it.
+
+    Returns (project, response) where `response` is a Flask error response to
+    return when the project is missing or not owned, or None on success.
+    """
+    project = storage.get_project(project_id)
+    if not project:
+        return None, (jsonify({'success': False, 'error': 'Project not found'}), 404)
+    if project.user_id != current_user.id:
+        return None, (jsonify({'success': False, 'error': 'Access denied'}), 403)
+    return project, None
 
 @app.route('/api/projects/<project_id>/comments', methods=['GET'])
 @login_required
 def get_comments(project_id):
-    """Get comments for a project."""
+    """Get comments for a project (owner only)."""
     try:
-        project = storage.get_project(project_id)
-        if not project:
-            return jsonify({'success': False, 'error': 'Project not found'}), 404
+        project, err = _verify_project_owner(project_id)
+        if err:
+            return err
 
-        comments = project_comments.get(project_id, [])
+        comments = storage.get_comments(project_id)
         return jsonify({'success': True, 'comments': comments})
 
     except Exception as e:
@@ -3179,13 +3270,13 @@ def get_comments(project_id):
 @login_required
 @api_rate_limit
 def add_comment(project_id, chapter_num=None):
-    """Add a comment to a project or chapter."""
+    """Add a comment to a project or chapter (owner only)."""
     try:
-        project = storage.get_project(project_id)
-        if not project:
-            return jsonify({'success': False, 'error': 'Project not found'}), 404
+        project, err = _verify_project_owner(project_id)
+        if err:
+            return err
 
-        data = request.get_json()
+        data = request.get_json() or {}
         comment_text = data.get('comment')
         chapter_number = data.get('chapter_number')
         line_number = data.get('line_number')
@@ -3202,15 +3293,9 @@ def add_comment(project_id, chapter_num=None):
             'comment': comment_text,
             'chapter_number': chapter_number,
             'line_number': line_number,
-            'created_at': datetime.now().isoformat(),
-            'resolved': False
         }
-
-        if project_id not in project_comments:
-            project_comments[project_id] = []
-        project_comments[project_id].append(comment)
-
-        return jsonify({'success': True, 'comment': comment})
+        stored = storage.add_comment(comment)
+        return jsonify({'success': True, 'comment': stored})
 
     except Exception as e:
         logger.error(f"Error adding comment: {e}")
@@ -3219,12 +3304,22 @@ def add_comment(project_id, chapter_num=None):
 @app.route('/api/projects/<project_id>/comments/<comment_id>', methods=['DELETE'])
 @login_required
 def delete_comment(project_id, comment_id):
-    """Delete a comment."""
+    """Delete a comment. Allowed for the project owner or the comment author."""
     try:
-        if project_id in project_comments:
-            project_comments[project_id] = [
-                c for c in project_comments[project_id] if c['id'] != comment_id
-            ]
+        project, err = _verify_project_owner(project_id)
+        if err:
+            return err
+
+        comment = storage.get_comment(comment_id)
+        if not comment or comment['project_id'] != project_id:
+            return jsonify({'success': False, 'error': 'Comment not found'}), 404
+
+        if comment['user_id'] != current_user.id:
+            # Author is allowed; otherwise the project owner may delete (already verified above).
+            if project.user_id != current_user.id:
+                return jsonify({'success': False, 'error': 'Access denied'}), 403
+
+        storage.delete_comment(comment_id)
         return jsonify({'success': True, 'message': 'Comment deleted'})
 
     except Exception as e:
@@ -3234,17 +3329,23 @@ def delete_comment(project_id, comment_id):
 @app.route('/api/projects/<project_id>/comments/<comment_id>/resolve', methods=['POST'])
 @login_required
 def resolve_comment(project_id, comment_id):
-    """Mark a comment as resolved."""
+    """Mark a comment as resolved (owner or author)."""
     try:
-        if project_id in project_comments:
-            for comment in project_comments[project_id]:
-                if comment['id'] == comment_id:
-                    comment['resolved'] = True
-                    comment['resolved_at'] = datetime.now().isoformat()
-                    comment['resolved_by'] = current_user.id
-                    return jsonify({'success': True, 'comment': comment})
+        project, err = _verify_project_owner(project_id)
+        if err:
+            return err
 
-        return jsonify({'success': False, 'error': 'Comment not found'}), 404
+        comment = storage.get_comment(comment_id)
+        if not comment or comment['project_id'] != project_id:
+            return jsonify({'success': False, 'error': 'Comment not found'}), 404
+
+        if comment['user_id'] != current_user.id and project.user_id != current_user.id:
+            return jsonify({'success': False, 'error': 'Access denied'}), 403
+
+        updated = storage.resolve_comment(comment_id, current_user.id)
+        if not updated:
+            return jsonify({'success': False, 'error': 'Comment not found'}), 404
+        return jsonify({'success': True, 'comment': updated})
 
     except Exception as e:
         logger.error(f"Error resolving comment: {e}")
@@ -3321,11 +3422,13 @@ def set_chapter_status(project_id, chapter_num):
 @app.route('/api/projects/<project_id>/chapters/status', methods=['GET'])
 @login_required
 def get_chapters_status(project_id):
-    """Get the status of all chapters."""
+    """Get the status of all chapters (owner only)."""
     try:
         project = storage.get_project(project_id)
         if not project:
             return jsonify({'success': False, 'error': 'Project not found'}), 404
+        if project.user_id != current_user.id:
+            return jsonify({'success': False, 'error': 'Access denied'}), 403
 
         chapter_status = project.metadata.get('chapter_status', {})
 

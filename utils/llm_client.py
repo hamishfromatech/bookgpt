@@ -11,6 +11,26 @@ load_dotenv()
 
 logger = logging.getLogger(__name__)
 
+
+def _safe_usage(usage) -> Dict[str, int]:
+    """Return a token-usage dict that is safe even when the provider omits it.
+
+    OpenAI-compatible providers (Ollama, LM Studio, vLLM, etc.) frequently
+    return ``response.usage = None`` on non-streaming responses, which would
+    raise AttributeError if accessed directly. Fall back to zeros so callers
+    never crash on a missing usage object.
+    """
+    if usage is None:
+        return {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+    try:
+        return {
+            "prompt_tokens": getattr(usage, "prompt_tokens", 0) or 0,
+            "completion_tokens": getattr(usage, "completion_tokens", 0) or 0,
+            "total_tokens": getattr(usage, "total_tokens", 0) or 0,
+        }
+    except Exception:
+        return {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+
 class LLMProvider(Enum):
     OPENAI = "openai"
     ANTHROPIC = "anthropic"
@@ -153,15 +173,11 @@ class LLMClient:
         try:
             response = self._client.chat.completions.create(**params)
             choice = response.choices[0]
-            
+
             return LLMResponse(
                 content=choice.message.content,
                 tool_calls=[], # Standard chat doesn't have tool calls in this helper
-                usage={
-                    "prompt_tokens": response.usage.prompt_tokens,
-                    "completion_tokens": response.usage.completion_tokens,
-                    "total_tokens": response.usage.total_tokens
-                },
+                usage=_safe_usage(response.usage),
                 raw_response=response
             )
         except Exception as e:
@@ -206,11 +222,7 @@ class LLMClient:
             return LLMResponse(
                 content=choice.message.content,
                 tool_calls=tool_calls,
-                usage={
-                    "prompt_tokens": response.usage.prompt_tokens,
-                    "completion_tokens": response.usage.completion_tokens,
-                    "total_tokens": response.usage.total_tokens
-                },
+                usage=_safe_usage(response.usage),
                 raw_response=response
             )
         except Exception as e:

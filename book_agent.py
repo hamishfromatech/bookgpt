@@ -9,6 +9,7 @@ import json
 import uuid
 import os
 import time
+import threading
 from typing import List, Dict, Any, Optional, Generator, Callable
 from datetime import datetime
 import logging
@@ -186,12 +187,22 @@ Focus on:
         self.tools = {tool.name(): tool for tool in tools}
         self.conversation_history = {}
         self.project_states = {}
-        self.progress_callback = None
+        self._state_lock = threading.RLock()
+        # Per-project progress callbacks so concurrent tasks don't clobber each
+        # other (the agent is a singleton shared across worker threads).
+        self.progress_callbacks: Dict[str, Callable] = {}
         self.db = db or BookDatabase()
-        
+
         # Agent configuration
         self.max_iterations = 20
         self.current_iteration = 0
+        # Hard cap on chapters per book as a safety net (the writing loop now
+        # runs until the target is met rather than being gated by max_iterations).
+        self.max_chapters = 200
+        # Output token budget for a single chapter. 4096 truncates ~5000-word
+        # chapters mid-sentence; 8000 comfortably fits a full chapter on modern
+        # models. Override per-call where the model supports more.
+        self.chapter_max_tokens = 8000
         
         # Initialize LLM client
         if llm_client:
@@ -243,23 +254,31 @@ Focus on:
         """Save the project state to the database."""
         if project_id not in self.project_states:
             return
-            
-        state = self.project_states[project_id]
-        project = state['project']
-        
-        # Update project object with current state
-        project.status = state['current_phase']
-        project.chapters_completed = state['chapter_count']
-        project.total_words = state['total_words']
-        project.outline = state.get('outline')
-        project.research_materials = state.get('research_materials')
-        
-        # Save conversation history in metadata
-        project.metadata['conversation_history'] = state.get('conversation_history', [])
-        
-        # Persist to database
-        self.db.save_project(project)
-        logger.info(f"Project state saved to database for: {project_id}")
+
+        with self._state_lock:
+            state = self.project_states[project_id]
+            project = state['project']
+
+            # Update project object with current state
+            project.status = state['current_phase']
+            project.chapters_completed = state['chapter_count']
+            project.total_words = state['total_words']
+            project.outline = state.get('outline')
+            project.research_materials = state.get('research_materials')
+
+            # Trim conversation history to prevent unbounded growth. Keep the
+            # most recent messages so the agent retains recent context without
+            # the persisted payload (and future prompts) ballooning over time.
+            history = state.get('conversation_history', [])
+            max_history = getattr(self, 'max_conversation_history', 100)
+            if len(history) > max_history:
+                history = history[-max_history:]
+                state['conversation_history'] = history
+            project.metadata['conversation_history'] = history
+
+            # Persist to database
+            self.db.save_project(project)
+            logger.info(f"Project state saved to database for: {project_id}")
 
     def resume_writing_process(self, project_id: str) -> Dict[str, Any]:
         """
@@ -323,14 +342,22 @@ Focus on:
                 'phase': 'resume'
             }
 
-    def set_progress_callback(self, callback):
-        """Set a callback function to receive progress updates."""
-        self.progress_callback = callback
-    
-    def _report_progress(self, phase: str, progress: float, message: str, activity: str = None):
-        """Report progress to the callback if set."""
-        if self.progress_callback:
-            self.progress_callback(phase, progress, message, activity)
+    def set_progress_callback(self, project_id: str, callback: Callable):
+        """Set a per-project callback function to receive progress updates."""
+        self.progress_callbacks[project_id] = callback
+
+    def clear_progress_callback(self, project_id: str):
+        """Remove a per-project progress callback."""
+        self.progress_callbacks.pop(project_id, None)
+
+    def _report_progress(self, project_id: str, phase: str, progress: float, message: str, activity: str = None):
+        """Report progress to the project's callback if set."""
+        callback = self.progress_callbacks.get(project_id)
+        if callback:
+            try:
+                callback(phase, progress, message, activity)
+            except Exception as e:
+                logger.warning(f"Progress callback error for {project_id}: {e}")
     
     def _create_llm_client(
         self, 
@@ -402,51 +429,64 @@ Focus on:
                 'phase': 'initialization'
             }
     
-    def _run_agentic_loop(self, project_id: str) -> Dict[str, Any]:
-        """Main agentic loop that handles the book writing process."""
-        
+    def _run_agentic_loop(self, project_id: str, resume: bool = False) -> Dict[str, Any]:
+        """Main agentic loop that handles the book writing process.
+
+        Args:
+            project_id: The project identifier.
+            resume: If True, continue from the current phase without
+                re-initializing earlier phases (used when resuming a
+                paused/interrupted writing or editing process).
+        """
+
         state = self.project_states[project_id]
         project = state['project']
-        
+
         try:
             # Phase 1: Planning and Outline Generation
             if state['current_phase'] == 'planning':
                 logger.info("Phase 1: Planning and Outline Generation")
-                self._report_progress('planning', 10.0, 'Creating book outline and structure...', 'Starting planning phase')
-                
+                self._report_progress(project_id, 'planning', 10.0, 'Creating book outline and structure...', 'Starting planning phase')
+
                 planning_result = self._execute_planning_phase(project_id)
-                
+
                 if planning_result['success']:
                     state['outline'] = planning_result.get('outline', {})
                     state['current_phase'] = 'research'
-                    self._report_progress('planning', 100.0, 'Planning completed successfully', 'Outline created successfully')
+                    self._report_progress(project_id, 'planning', 100.0, 'Planning completed successfully', 'Outline created successfully')
                     logger.info("Outline created successfully, moving to research phase")
                     self._save_project_state(project_id)
                 else:
                     state['errors'].append(f"Planning failed: {planning_result.get('error')}")
                     self._save_project_state(project_id)
                     return planning_result
-            
+
             # Phase 2: Research and Background
             if state['current_phase'] == 'research':
                 logger.info("Phase 2: Research and Background")
-                self._report_progress('research', 30.0, 'Gathering background information...', 'Starting research phase')
-                
+                self._report_progress(project_id, 'research', 30.0, 'Gathering background information...', 'Starting research phase')
+
                 research_result = self._execute_research_phase(project_id, state['outline'])
-                
+
                 if research_result['success']:
                     state['research_materials'] = research_result.get('materials', {})
                     state['current_phase'] = 'writing'
-                    self._report_progress('research', 100.0, 'Research completed successfully', 'Research phase completed')
+                    self._report_progress(project_id, 'research', 100.0, 'Research completed successfully', 'Research phase completed')
                     logger.info("Research completed, moving to writing phase")
                     self._save_project_state(project_id)
                 else:
                     state['errors'].append(f"Research failed: {research_result.get('error')}")
                     self._save_project_state(project_id)
                     return research_result
-            
+
             # Phase 3: Chapter Writing Loop
-            while state['current_phase'] == 'writing' and state['iterations'] < self.max_iterations:
+            # Decoupled from max_iterations so the iteration cap (meant to bound
+            # per-chapter agentic editing loops) cannot cut a long book short.
+            # A generous chapter cap prevents runaway generation.
+            while state['current_phase'] == 'writing':
+                if state['chapter_count'] >= self.max_chapters:
+                    logger.warning(f"Reached chapter safety cap ({self.max_chapters}), stopping writing phase")
+                    break
                 logger.info(f"Phase 3: Writing Chapter {state['chapter_count'] + 1}")
                 
                 chapter_result = self._write_chapter_with_llm(project_id)
@@ -670,8 +710,8 @@ This research will inform the writing process."""}
             for i, chapter in enumerate(chapters):
                 logger.info(f"Writing chapter {i+1}/{len(chapters)}: {chapter.get('title', 'Untitled')}")
                 
-                self._report_progress('writing', 30.0 + (i / len(chapters)) * 60.0, 
-                                    f'Writing chapter {i+1}: {chapter.get("title", "Untitled")}', 
+                self._report_progress(project_id, 'writing', 30.0 + (i / len(chapters)) * 60.0,
+                                    f'Writing chapter {i+1}: {chapter.get("title", "Untitled")}',
                                     f'Working on chapter {i+1}')
                 
                 chapter_content = self._write_chapter(project_id, chapter, outline, research, i+1)
@@ -702,6 +742,28 @@ This research will inform the writing process."""}
                 'error': f'Writing phase failed: {str(e)}'
             }
     
+    def _read_previous_chapter(self, project_id: str, chapter_number: int) -> Optional[str]:
+        """Read a previously written chapter from the project files.
+
+        Returns the chapter content (markdown) or None if it cannot be read.
+        """
+        try:
+            read_tool = self.tools.get('read_file')
+            if not read_tool:
+                return None
+            result = read_tool.execute(
+                project_id=project_id,
+                path=f"chapters/chapter_{chapter_number}.md"
+            )
+            if isinstance(result, dict) and result.get('success'):
+                return result.get('content')
+            if isinstance(result, str):
+                return result
+            return None
+        except Exception as e:
+            logger.warning(f"Could not read previous chapter {chapter_number} for {project_id}: {e}")
+            return None
+
     @retry_with_backoff(max_retries=3, base_delay=2.0, max_delay=60.0)
     def _write_chapter_with_llm(self, project_id: str) -> Dict[str, Any]:
         """Write a chapter using the LLM."""
@@ -716,20 +778,32 @@ This research will inform the writing process."""}
             chapters = outline.get('chapters', [])
             chapter_guidance = ""
             total_expected_chapters = len(chapters) if chapters else max(1, project.target_length // 5000)
-            
+
             # Report progress
             progress = 30.0 + (min(chapter_number - 1, total_expected_chapters) / total_expected_chapters) * 60.0
-            self._report_progress('writing', progress, f'Writing chapter {chapter_number} of {total_expected_chapters}...', f'Writing: {project.title} - Chapter {chapter_number}')
+            self._report_progress(project_id, 'writing', progress, f'Writing chapter {chapter_number} of {total_expected_chapters}...', f'Writing: {project.title} - Chapter {chapter_number}')
 
             if chapter_number <= len(chapters):
                 chapter_info = chapters[chapter_number - 1]
                 chapter_guidance = f"\nChapter {chapter_number} should cover: {chapter_info.get('summary', 'Continue the story')}"
-            
-            # Build context from previous chapters
+
+            # Build context from the actual previous chapter so the LLM keeps
+            # continuity in tone, characters, and plot across chapter boundaries.
             previous_context = ""
             if chapter_number > 1:
-                previous_context = "\n\nPrevious chapter summaries are available in the outline."
-            
+                prev_content = self._read_previous_chapter(project_id, chapter_number - 1)
+                if prev_content:
+                    # Keep only the tail (ending) to bound prompt size while still
+                    # giving the model the immediate lead-in to continue from.
+                    prev_tail = prev_content[-3000:]
+                    previous_context = (
+                        f"\n\nPrevious chapter (Chapter {chapter_number - 1}) ending:\n"
+                        f"{prev_tail}\n\nContinue seamlessly from where this left off, "
+                        f"maintaining the established voice, characters, and plot."
+                    )
+                else:
+                    previous_context = "\n\nPrevious chapter summaries are available in the outline."
+
             messages = [
                 {"role": "system", "content": self.SYSTEM_PROMPTS["writing"]},
                 {"role": "user", "content": f"""Write Chapter {chapter_number} for the book "{project.title}".
@@ -755,8 +829,8 @@ Write a complete, engaging chapter that:
 
 Begin the chapter now:"""}
             ]
-            
-            response = self.llm.chat(messages, max_tokens=4096)
+
+            response = self.llm.chat(messages, max_tokens=self.chapter_max_tokens)
             
             if response.content:
                 chapter_content = response.content
@@ -855,7 +929,7 @@ Start by reading chapter 1 and begin editing it."""
                 
                 # Update progress
                 progress = 30 + ((chapter_num - 1) / state['chapter_count']) * 60
-                self._report_progress('editing', progress, f'Editing chapter {chapter_num}...', f'Processing chapter {chapter_num}/{state["chapter_count"]}')
+                self._report_progress(project_id, 'editing', progress, f'Editing chapter {chapter_num}...', f'Processing chapter {chapter_num}/{state["chapter_count"]}')
                 
                 # Initial message to start editing this chapter
                 edit_message = f"""Review and edit chapter {chapter_num}.
@@ -1431,24 +1505,20 @@ Paths are relative to the project root (e.g., "chapters/chapter_1.md")."""
                 # Forward all streaming updates
                 for update in agent.run_stream(messages, tool_executor=tool_executor):
                     if update['type'] == 'turn_complete':
-                        # Save state after each turn
+                        # Persist state after each turn. We intentionally do NOT
+                        # append a placeholder here — the assistant message is
+                        # recorded below when the run completes, so adding a
+                        # "Thinking..." stub would duplicate/pollute the history.
                         self._save_project_state(project_id)
-                        
-                        # Update conversation history with messages from this turn
-                        # Note: AgentMode doesn't expose internal history, so we add basic structure
-                        state['conversation_history'].append({
-                            "role": "assistant",
-                            "content": "Thinking..."
-                        })
                     elif update['type'] == 'complete':
-                        self._save_project_state(project_id)
-                        
-                        # Add final response to history
+                        # Add the final assistant response to history once.
+                        final_content = update['data'].get('content', '')
                         state['conversation_history'].append({
                             "role": "assistant",
-                            "content": update['data'].get('content', '')
+                            "content": final_content
                         })
-                    
+                        self._save_project_state(project_id)
+
                     yield update
             else:
                 # No tools - just stream regular chat

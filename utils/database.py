@@ -26,10 +26,28 @@ class BookDatabase:
             os.makedirs(db_dir, exist_ok=True)
         self.init_database()
 
+    def _connect(self) -> sqlite3.Connection:
+        """Open a SQLite connection with concurrency-friendly pragmas applied.
+
+        Enables WAL mode (allows concurrent readers alongside a single
+        writer) and sets a busy_timeout so writers wait briefly instead of
+        raising 'database is locked' under the multi-threaded task manager.
+        Pragmas must be set per-connection since this class opens a fresh
+        connection for each operation.
+        """
+        conn = sqlite3.connect(self.db_path, timeout=30.0)
+        try:
+            conn.execute("PRAGMA journal_mode=WAL")
+            conn.execute("PRAGMA busy_timeout=30000")
+            conn.execute("PRAGMA foreign_keys=ON")
+        except sqlite3.Error as e:
+            logger.warning(f"Could not apply database pragmas: {e}")
+        return conn
+
     def init_database(self):
         """Initialize database tables."""
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with self._connect() as conn:
                 cursor = conn.cursor()
                 
                 # Projects table
@@ -191,6 +209,24 @@ class BookDatabase:
                     )
                 ''')
 
+                # Comments table - persisted review comments on projects/chapters
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS comments (
+                        id TEXT PRIMARY KEY,
+                        project_id TEXT NOT NULL,
+                        user_id TEXT NOT NULL,
+                        user_username TEXT DEFAULT '',
+                        comment TEXT NOT NULL,
+                        chapter_number INTEGER,
+                        line_number INTEGER,
+                        resolved INTEGER DEFAULT 0,
+                        resolved_at TIMESTAMP NULL,
+                        resolved_by TEXT,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY (project_id) REFERENCES projects (id) ON DELETE CASCADE
+                    )
+                ''')
+
                 # Create additional indexes
                 cursor.execute('CREATE INDEX IF NOT EXISTS idx_chapter_versions_project ON chapter_versions(project_id)')
                 cursor.execute('CREATE INDEX IF NOT EXISTS idx_chapter_versions_chapter ON chapter_versions(chapter_id)')
@@ -198,6 +234,7 @@ class BookDatabase:
                 cursor.execute('CREATE INDEX IF NOT EXISTS idx_plot_points_project ON plot_points(project_id)')
                 cursor.execute('CREATE INDEX IF NOT EXISTS idx_templates_genre ON writing_templates(genre)')
                 cursor.execute('CREATE INDEX IF NOT EXISTS idx_templates_public ON writing_templates(is_public)')
+                cursor.execute('CREATE INDEX IF NOT EXISTS idx_comments_project ON comments(project_id)')
                 
                 # Create indexes
                 cursor.execute('CREATE INDEX IF NOT EXISTS idx_projects_user_id ON projects(user_id)')
@@ -912,4 +949,122 @@ class BookDatabase:
 
         except Exception as e:
             logger.error(f"Error getting template: {e}")
+            return None
+
+    # =========================================================================
+    # Comment Methods
+    # =========================================================================
+
+    def add_comment(self, comment: Dict[str, Any]) -> Dict[str, Any]:
+        """Persist a comment and return the stored record."""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    INSERT INTO comments
+                    (id, project_id, user_id, user_username, comment, chapter_number,
+                     line_number, resolved, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, 0, CURRENT_TIMESTAMP)
+                ''', (
+                    comment['id'], comment['project_id'], comment['user_id'],
+                    comment.get('user_username', ''), comment['comment'],
+                    comment.get('chapter_number'), comment.get('line_number')
+                ))
+                conn.commit()
+            stored = dict(comment)
+            stored['resolved'] = False
+            return stored
+        except Exception as e:
+            logger.error(f"Error saving comment: {e}")
+            raise
+
+    def get_comments(self, project_id: str) -> List[Dict[str, Any]]:
+        """Get all comments for a project, oldest first."""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                cursor.execute('''
+                    SELECT id, project_id, user_id, user_username, comment,
+                           chapter_number, line_number, resolved, resolved_at,
+                           resolved_by, created_at
+                    FROM comments WHERE project_id = ?
+                    ORDER BY created_at ASC
+                ''', (project_id,))
+                rows = cursor.fetchall()
+                comments = []
+                for row in rows:
+                    comments.append({
+                        'id': row['id'],
+                        'project_id': row['project_id'],
+                        'user_id': row['user_id'],
+                        'user_username': row['user_username'],
+                        'comment': row['comment'],
+                        'chapter_number': row['chapter_number'],
+                        'line_number': row['line_number'],
+                        'resolved': bool(row['resolved']),
+                        'resolved_at': row['resolved_at'],
+                        'resolved_by': row['resolved_by'],
+                        'created_at': row['created_at']
+                    })
+                return comments
+        except Exception as e:
+            logger.error(f"Error getting comments: {e}")
+            return []
+
+    def get_comment(self, comment_id: str) -> Optional[Dict[str, Any]]:
+        """Get a single comment by id."""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                cursor.execute('SELECT * FROM comments WHERE id = ?', (comment_id,))
+                row = cursor.fetchone()
+                if not row:
+                    return None
+                return {
+                    'id': row['id'],
+                    'project_id': row['project_id'],
+                    'user_id': row['user_id'],
+                    'user_username': row['user_username'],
+                    'comment': row['comment'],
+                    'chapter_number': row['chapter_number'],
+                    'line_number': row['line_number'],
+                    'resolved': bool(row['resolved']),
+                    'resolved_at': row['resolved_at'],
+                    'resolved_by': row['resolved_by'],
+                    'created_at': row['created_at']
+                }
+        except Exception as e:
+            logger.error(f"Error getting comment: {e}")
+            return None
+
+    def delete_comment(self, comment_id: str) -> bool:
+        """Delete a comment by id. Returns True if a row was removed."""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute('DELETE FROM comments WHERE id = ?', (comment_id,))
+                conn.commit()
+                return cursor.rowcount > 0
+        except Exception as e:
+            logger.error(f"Error deleting comment: {e}")
+            return False
+
+    def resolve_comment(self, comment_id: str, resolved_by: str) -> Optional[Dict[str, Any]]:
+        """Mark a comment resolved. Returns updated comment or None if not found."""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    UPDATE comments
+                    SET resolved = 1, resolved_at = CURRENT_TIMESTAMP, resolved_by = ?
+                    WHERE id = ?
+                ''', (resolved_by, comment_id))
+                conn.commit()
+                if cursor.rowcount == 0:
+                    return None
+            return self.get_comment(comment_id)
+        except Exception as e:
+            logger.error(f"Error resolving comment: {e}")
             return None

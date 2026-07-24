@@ -143,7 +143,24 @@ class TaskManager:
 
                 # Use resume method for resume_book tasks
                 if task.type == 'resume_book':
-                    result = agent.resume_writing_process(task.project_id)
+                    # Set up progress tracking for the resume path too, so the
+                    # task UI updates while a resumed writing/editing run proceeds.
+                    def resume_progress_callback(phase: str, progress: float, message: str, activity: str = None):
+                        task.progress = progress
+                        task.current_phase = phase
+                        task.message = message
+                        if activity:
+                            task.activities.append({
+                                'timestamp': datetime.now().isoformat(),
+                                'message': activity
+                            })
+                            if len(task.activities) > 50:
+                                task.activities = task.activities[-50:]
+                    agent.set_progress_callback(task.project_id, resume_progress_callback)
+                    try:
+                        result = agent.resume_writing_process(task.project_id)
+                    finally:
+                        agent.clear_progress_callback(task.project_id)
                     if result.get('success'):
                         task.status = TaskStatus.COMPLETED
                         task.completed_at = datetime.now()
@@ -226,15 +243,21 @@ class TaskManager:
                 task.activities = task.activities[-50:]
         
         # Set progress callback
-        agent.set_progress_callback(progress_callback)
-        
+        agent.set_progress_callback(project_id, progress_callback)
+
         # Execute the writing process
         result = agent.start_writing_process(project)
-        
+
         task.result = result
         task.progress = 100.0
         task.current_phase = "refining"
         task.message = "Book writing completed successfully. Entering Agent Mode."
+
+        # Clear the per-project callback so it doesn't outlive this task
+        try:
+            agent.clear_progress_callback(project_id)
+        except Exception:
+            pass
     
     def _notify_task_completion(self, task: Task):
         """Notify about task completion (could be extended with websockets, etc.)."""
