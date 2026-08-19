@@ -221,7 +221,14 @@ def _enforce_password_change():
 # Create database tables and master admin
 with app.app_context():
     db.create_all()
-    if not User.query.filter_by(username='user').first():
+    # Guard against BOTH unique columns. A leftover admin row from a previous
+    # default username (e.g. 'hamish') shares the admin email, so checking only
+    # username='user' would attempt a duplicate-email insert and crash startup
+    # with a UNIQUE constraint violation.
+    existing_admin = User.query.filter(
+        (User.username == 'user') | (User.email == 'admin@bookgpt.ai')
+    ).first()
+    if not existing_admin:
         admin = User(username='user', email='admin@bookgpt.ai', must_change_password=True)
         admin.set_password('password')
         db.session.add(admin)
@@ -305,6 +312,12 @@ def settings():
 def monitor():
     """Serve the monitor page."""
     return render_template('monitor.html')
+
+@app.route('/docs')
+@login_required
+def docs():
+    """Serve the help and best practices documentation page."""
+    return render_template('docs.html')
 
 @app.route('/profile')
 @login_required
@@ -595,7 +608,8 @@ def create_project():
             title=data['title'],
             genre=data['genre'],
             target_length=data['target_length'],
-            writing_style=data['writing_style']
+            writing_style=data['writing_style'],
+            skill=data.get('skill')  # Optional: domain-specific skill (fiction-writer, non-fiction-author, etc.)
         )
         
         # Store description and characters in metadata

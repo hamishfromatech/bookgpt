@@ -100,6 +100,26 @@ class AgentResponse:
         self.timestamp = datetime.now()
 
 
+class AgentActivityLog:
+    """Represents an activity log entry for agent tool calls and reasoning."""
+    
+    def __init__(self, phase: str, action: str, details: Dict[str, Any], timestamp: datetime = None):
+        self.phase = phase
+        self.action = action
+        self.details = details
+        self.timestamp = timestamp or datetime.now()
+        self.id = str(uuid.uuid4())
+    
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            'id': self.id,
+            'phase': self.phase,
+            'action': self.action,
+            'details': self.details,
+            'timestamp': self.timestamp.isoformat()
+        }
+
+
 class BookWritingAgent:
     """
     Main agent for autonomous book writing using agentic loops and tool calling.
@@ -108,12 +128,30 @@ class BookWritingAgent:
     1. OpenAI API (default)
     2. Custom base URLs for OpenAI-compatible APIs
     3. Local LLM servers (Ollama, LM Studio, vLLM, etc.)
+    4. Domain-specific writing skills (fiction-writer, non-fiction-author, academic-writer, childrens-book-creator, screenplay-writer)
     
     Configuration via environment variables:
     - OPENAI_API_KEY: Your API key
     - OPENAI_BASE_URL: Custom base URL (optional)
     - LLM_MODEL: Model to use (default: gpt-4o)
     """
+    
+    # Available skills with their descriptions for system prompt
+    AVAILABLE_SKILLS = {
+        'fiction-writer': 'Specialized workflow for novel and fiction writing. Handles character arcs, plot beats, dialogue focus, scene structure, and narrative pacing.',
+        'non-fiction-author': 'Specialized workflow for non-fiction book writing. Handles research citation, factual accuracy, logical structure, reader education, and authoritative tone.',
+        'academic-writer': 'Specialized workflow for academic and scholarly writing. Handles formal tone, peer-review style, reference formatting, literature review integration, and methodological rigor.',
+        'childrens-book-creator': 'Specialized workflow for children\'s book writing. Handles simple language, educational themes, age-appropriate content, illustration prompts, and engaging storytelling.',
+        'screenplay-writer': 'Specialized workflow for screenwriting and script writing. Handles scene headings, action lines, dialogue formatting, character introductions, and visual storytelling.'
+    }
+    
+    # Skill-specific system prompt additions
+    SKILL_PROMPTS = {
+        'fiction-writer': "Focus on character development arcs, plot structure (setup, rising action, climax, resolution), scene and chapter structuring, dialogue that reveals character and advances plot, pacing and tension management, and genre conventions.",
+        'non-fiction-author': "Focus on research methodology and citation integration, logical argument structure and flow, reader education and knowledge transfer, authoritative yet accessible tone, fact-checking and accuracy verification, and practical application and actionable takeaways.",
+        'academic-writer': "Maintain formal academic tone and terminology, integrate literature review properly, describe methods clearly with justification, follow specific citation format consistently (APA, MLA, Chicago, IEEE), and base arguments on empirical evidence or logical reasoning.",
+        'childrens-book-creator': "Use age-appropriate vocabulary and sentence structure, include educational themes and moral lessons, use repetition and rhythm for engagement, provide illustration-friendly scenes, ensure safety and appropriateness of content, and create engaging storytelling with clear beginning, middle, and end.",
+        'screenplay-writer': "Use standard screenplay formatting (scene headings, action lines, dialogue), focus on visual storytelling over exposition, introduce characters properly with stage directions, maintain pacing for visual medium, and ensure dialogue sounds natural when spoken."
     
     # System prompts for different phases
     SYSTEM_PROMPTS = {
@@ -224,10 +262,25 @@ Focus on:
             f"BookWritingAgent initialized with {len(self.tools)} tools, "
             f"using model: {self.llm.config.model}"
         )
+        
+        # Add writing-specific tools if available
+        self._add_writing_tools()
+        
+        # Load skill descriptions for system prompt
+        self.skill_descriptions = self.AVAILABLE_SKILLS
     
     def _ensure_project_state(self, project_id: str) -> bool:
         """Ensure the project state is loaded into memory."""
         if project_id in self.project_states:
+            # Also ensure running summary exists
+            state = self.project_states[project_id]
+            if 'running_summary' not in state:
+                state['running_summary'] = {
+                    'chapters_summarized': 0,
+                    'summary_content': '',
+                    'characters_introduced': [],
+                    'locations_mentioned': []
+                }
             return True
             
         logger.info(f"Loading project state from database for: {project_id}")
@@ -236,6 +289,9 @@ Focus on:
             logger.error(f"Project {project_id} not found in database")
             return False
             
+        # Try to load running summary from metadata if it exists
+        metadata_summary = project.metadata.get('running_summary', {})
+        
         self.project_states[project_id] = {
             'project': project,
             'current_phase': project.status,
@@ -246,7 +302,14 @@ Focus on:
             'errors': [],
             'conversation_history': project.metadata.get('conversation_history', []),
             'outline': project.outline or {},
-            'research_materials': project.research_materials or {}
+            'research_materials': project.research_materials or {},
+            'running_summary': metadata_summary if metadata_summary else {
+                'chapters_summarized': 0,
+                'summary_content': '',
+                'characters_introduced': [],
+                'locations_mentioned': []
+            },
+            'agent_activity_log': project.metadata.get('agent_activity_log', [])
         }
         return True
 
@@ -276,6 +339,17 @@ Focus on:
                 state['conversation_history'] = history
             project.metadata['conversation_history'] = history
 
+            # Save running summary to metadata
+            running_summary = state.get('running_summary', {})
+            project.metadata['running_summary'] = running_summary
+
+            # Trim and save agent activity log
+            activity_log = state.get('agent_activity_log', [])
+            max_logs = getattr(self, 'max_agent_activity_logs', 500)
+            if len(activity_log) > max_logs:
+                activity_log = activity_log[-max_logs:]
+            project.metadata['agent_activity_log'] = activity_log
+
             # Persist to database
             self.db.save_project(project)
             logger.info(f"Project state saved to database for: {project_id}")
@@ -296,6 +370,7 @@ Focus on:
             logger.info(f"Resuming writing process for project: {project_id}")
 
             # Initialize state from saved project
+            metadata_summary = project.metadata.get('running_summary', {})
             self.project_states[project_id] = {
                 'project': project,
                 'current_phase': project.status,
@@ -306,7 +381,14 @@ Focus on:
                 'errors': [],
                 'conversation_history': project.metadata.get('conversation_history', []),
                 'outline': project.outline or {},
-                'research_materials': project.research_materials or {}
+                'research_materials': project.research_materials or {},
+                'running_summary': metadata_summary if metadata_summary else {
+                    'chapters_summarized': 0,
+                    'summary_content': '',
+                    'characters_introduced': [],
+                    'locations_mentioned': []
+                },
+                'agent_activity_log': project.metadata.get('agent_activity_log', [])
             }
 
             state = self.project_states[project_id]
@@ -358,7 +440,262 @@ Focus on:
                 callback(phase, progress, message, activity)
             except Exception as e:
                 logger.warning(f"Progress callback error for {project_id}: {e}")
-    
+
+    def _log_activity(self, project_id: str, phase: str, action: str, details: Dict[str, Any]):
+        """Log an agent activity event."""
+        if project_id not in self.project_states:
+            return
+        
+        state = self.project_states[project_id]
+        activity_log = state.get('agent_activity_log', [])
+        
+        log_entry = AgentActivityLog(phase=phase, action=action, details=details).to_dict()
+        activity_log.append(log_entry)
+        
+        # Keep only the most recent logs
+        max_logs = getattr(self, 'max_agent_activity_logs', 500)
+        if len(activity_log) > max_logs:
+            activity_log = activity_log[-max_logs:]
+        
+        state['agent_activity_log'] = activity_log
+
+    def _add_writing_tools(self):
+        """Add writing-specific tools to the agent's toolset."""
+        try:
+            from tools.writing_tools import (
+                RunningSummaryTool,
+                ChapterEvaluationTool,
+                CharacterConsistencyTool
+            )
+            # Add running summary tool if not already present
+            if 'running_summary' not in self.tools:
+                self.tools['running_summary'] = RunningSummaryTool()
+                # Add to tool definitions
+                self.tool_definitions.append(ToolDefinition(
+                    name='running_summary',
+                    description=RunningSummaryTool().description(),
+                    parameters=RunningSummaryTool().parameters_schema()
+                ))
+            if 'evaluate_chapter' not in self.tools:
+                self.tools['evaluate_chapter'] = ChapterEvaluationTool()
+                self.tool_definitions.append(ToolDefinition(
+                    name='evaluate_chapter',
+                    description=ChapterEvaluationTool().description(),
+                    parameters=ChapterEvaluationTool().parameters_schema()
+                ))
+            if 'character_consistency' not in self.tools:
+                self.tools['character_consistency'] = CharacterConsistencyTool()
+                self.tool_definitions.append(ToolDefinition(
+                    name='character_consistency',
+                    description=CharacterConsistencyTool().description(),
+                    parameters=CharacterConsistencyTool().parameters_schema()
+                ))
+            logger.info("Added writing-specific tools to agent")
+        except ImportError as e:
+            logger.warning(f"Could not load writing-specific tools: {e}")
+
+    def _load_skill_content(self, skill_name: str) -> Optional[str]:
+        """
+        Load the full SKILL.md content for a domain-specific skill.
+        
+        Uses progressive disclosure pattern: metadata is in system prompt,
+        full content is loaded on-demand when skill is selected.
+        """
+        try:
+            # Try to load from .agents/skills directory
+            skill_dir = os.path.join(os.path.dirname(__file__), '..', '.agents', 'skills', skill_name)
+            if not os.path.exists(skill_dir):
+                # Try relative path from current working directory
+                skill_dir = os.path.join('.agents', 'skills', skill_name)
+            
+            skill_md_path = os.path.join(skill_dir, 'SKILL.md')
+            if os.path.exists(skill_md_path):
+                with open(skill_md_path, 'r', encoding='utf-8') as f:
+                    return f.read()
+        except Exception as e:
+            logger.warning(f"Could not load skill content for {skill_name}: {e}")
+        
+        return None
+
+    def _get_skill_guidance(self, project: Any) -> str:
+        """
+        Get skill-specific guidance based on the project's selected skill.
+        
+        Returns a string of guidance to include in system prompts.
+        """
+        skill = getattr(project, 'skill', None) or self.AVAILABLE_SKILLS.get('fiction-writer')
+        
+        # Return skill-specific prompt additions
+        if skill in self.SKILL_PROMPTS:
+            return f"\n\nSkill Guidance ({skill}):
+{self.SKILL_PROMPTS[skill]}"
+        elif skill == 'fiction':
+            return "\n\nSkill Guidance (fiction-writer):\n" + self.SKILL_PROMPTS['fiction-writer']
+        elif skill in ['non_fiction', 'business', 'guide']:
+            return "\n\nSkill Guidance (non-fiction-author):\n" + self.SKILL_PROMPTS['non-fiction-author']
+        elif skill in ['academic', 'research', 'textbook']:
+            return "\n\nSkill Guidance (academic-writer):\n" + self.SKILL_PROMPTS['academic-writer']
+        elif skill in ['children', 'kids', 'picture-book']:
+            return "\n\nSkill Guidance (childrens-book-creator):\n" + self.SKILL_PROMPTS['childrens-book-creator']
+        elif skill in ['screenplay', 'script', 'film', 'tv']:
+            return "\n\nSkill Guidance (screenplay-writer):\n" + self.SKILL_PROMPTS['screenplay-writer']
+        
+        # Default guidance
+        return "\n\nGeneral Writing Guidance:\nFocus on engaging content, proper structure, and consistent quality throughout."
+
+    def _update_running_summary(self, project_id: str, state: Dict[str, Any]) -> Dict[str, Any]:
+        """Update the running story summary with the latest chapter."""
+        if 'running_summary' not in state:
+            state['running_summary'] = {
+                'chapters_summarized': 0,
+                'summary_content': '',
+                'characters_introduced': [],
+                'locations_mentioned': []
+            }
+        
+        summary_state = state['running_summary']
+        chapter_count = state['chapter_count']
+        project = state['project']
+        
+        # If we just completed a chapter, update the running summary
+        if chapter_count > summary_state.get('chapters_summarized', 0):
+            try:
+                # Read the latest chapter to summarize
+                read_tool = self.tools.get('read_file')
+                if read_tool:
+                    chapter_result = read_tool.execute(
+                        project_id=project_id,
+                        path=f"chapters/chapter_{chapter_count}.md"
+                    )
+                    
+                    if isinstance(chapter_result, dict) and chapter_result.get('success'):
+                        chapter_content = chapter_result.get('content', '')
+                    elif isinstance(chapter_result, str):
+                        chapter_content = chapter_result
+                    else:
+                        chapter_content = ''
+                else:
+                    chapter_content = ''
+                
+                # Generate summary using LLM if we have chapter content and it's the first time summarizing this chapter
+                if chapter_content and not summary_state.get('summary_content'):
+                    summary_prompt = f"""Provide a concise running summary of the story so far for the book "{project.title}".
+
+Current chapters completed: {chapter_count}
+Latest chapter content (Chapter {chapter_count}):
+{chapter_content[:3000]}...
+
+Please provide:
+1. A brief 2-3 sentence summary of what happened in this chapter and overall story progress
+2. Any new characters introduced
+3. Any new locations or settings mentioned
+
+Format your response as:
+SUMMARY: [brief story summary]
+CHARACTERS: [comma-separated list of characters]
+LOCATIONS: [comma-separated list of locations]"""
+                    
+                    messages = [
+                        {"role": "system", "content": "You are a story continuity assistant. Provide concise, accurate summaries."},
+                        {"role": "user", "content": summary_prompt}
+                    ]
+                    
+                    try:
+                        response = self.llm.chat(messages, max_tokens=500)
+                        if response and hasattr(response, 'content') and response.content:
+                            content = response.content
+                            # Parse the response
+                            summary_line = ""
+                            characters_list = []
+                            locations_list = []
+                            
+                            for line in content.split('\n'):
+                                if line.startswith('SUMMARY:'):
+                                    summary_line = line.replace('SUMMARY:', '').strip()
+                                elif line.startswith('CHARACTERS:'):
+                                    chars = line.replace('CHARACTERS:', '').strip()
+                                    characters_list = [c.strip() for c in chars.split(',') if c.strip()]
+                                elif line.startswith('LOCATIONS:'):
+                                    locs = line.replace('LOCATIONS:', '').strip()
+                                    locations_list = [l.strip() for l in locs.split(',') if l.strip()]
+                            
+                            summary_state['summary_content'] = summary_line
+                            summary_state['characters_introduced'] = characters_list
+                            summary_state['locations_mentioned'] = locations_list
+                            summary_state['chapters_summarized'] = chapter_count
+                    except Exception as e:
+                        logger.warning(f"Failed to generate running summary: {e}")
+            except Exception as e:
+                logger.warning(f"Error updating running summary: {e}")
+        
+        return state.get('running_summary', {})
+
+    def _perform_cross_chapter_consistency_check(self, project_id: str, state: Dict[str, Any]):
+        """
+        Perform cross-chapter consistency checks using grep_search before editing.
+        
+        This helps identify potential inconsistencies in character names, locations,
+        and terminology across the entire manuscript.
+        """
+        try:
+            grep_tool = self.tools.get('grep_search')
+            if not grep_tool:
+                logger.warning("grep_search tool not available for cross-chapter consistency check")
+                return
+            
+            # Extract character and location names from running summary or outline
+            running_summary = state.get('running_summary', {})
+            characters_to_check = running_summary.get('characters_introduced', [])
+            locations_to_check = running_summary.get('locations_mentioned', [])
+            
+            consistency_notes = []
+            
+            # Check character name consistency
+            if characters_to_check:
+                for char_name in characters_to_check[:5]:  # Limit to first 5 characters
+                    try:
+                        result = grep_tool.execute(
+                            project_id=project_id,
+                            query=char_name,
+                            path=".",
+                            file_pattern="chapters/*.md",
+                            ignore_case=True
+                        )
+                        
+                        if isinstance(result, dict) and result.get('success'):
+                            matches = result.get('matches', [])
+                            if len(matches) > 0:
+                                consistency_notes.append(f"Character '{char_name}' mentioned in {len(matches)} chapters")
+                    except Exception as e:
+                        logger.warning(f"Consistency check for character '{char_name}': {e}")
+            
+            # Check location consistency
+            if locations_to_check:
+                for loc_name in locations_to_check[:3]:  # Limit to first 3 locations
+                    try:
+                        result = grep_tool.execute(
+                            project_id=project_id,
+                            query=loc_name,
+                            path=".",
+                            file_pattern="chapters/*.md",
+                            ignore_case=True
+                        )
+                        
+                        if isinstance(result, dict) and result.get('success'):
+                            matches = result.get('matches', [])
+                            if len(matches) > 0:
+                                consistency_notes.append(f"Location '{loc_name}' mentioned in {len(matches)} chapters")
+                    except Exception as e:
+                        logger.warning(f"Consistency check for location '{loc_name}': {e}")
+            
+            # Log the consistency check results
+            if consistency_notes:
+                logger.info(f"Cross-chapter consistency notes: {'; '.join(consistency_notes)}")
+                state['consistency_notes'] = consistency_notes
+                
+        except Exception as e:
+            logger.warning(f"Error in cross-chapter consistency check: {e}")
+
     def _create_llm_client(
         self, 
         api_key: Optional[str], 
@@ -447,6 +784,7 @@ Focus on:
             if state['current_phase'] == 'planning':
                 logger.info("Phase 1: Planning and Outline Generation")
                 self._report_progress(project_id, 'planning', 10.0, 'Creating book outline and structure...', 'Starting planning phase')
+                self._log_activity(project_id, 'planning', 'starting_planning', {'message': 'Beginning outline generation'})
 
                 planning_result = self._execute_planning_phase(project_id)
 
@@ -455,9 +793,11 @@ Focus on:
                     state['current_phase'] = 'research'
                     self._report_progress(project_id, 'planning', 100.0, 'Planning completed successfully', 'Outline created successfully')
                     logger.info("Outline created successfully, moving to research phase")
+                    self._log_activity(project_id, 'planning', 'completed_planning', {'outline_length': len(str(planning_result.get('content', '')))})
                     self._save_project_state(project_id)
                 else:
                     state['errors'].append(f"Planning failed: {planning_result.get('error')}")
+                    self._log_activity(project_id, 'planning', 'failed_planning', {'error': planning_result.get('error')})
                     self._save_project_state(project_id)
                     return planning_result
 
@@ -465,6 +805,7 @@ Focus on:
             if state['current_phase'] == 'research':
                 logger.info("Phase 2: Research and Background")
                 self._report_progress(project_id, 'research', 30.0, 'Gathering background information...', 'Starting research phase')
+                self._log_activity(project_id, 'research', 'starting_research', {'message': 'Beginning background research'})
 
                 research_result = self._execute_research_phase(project_id, state['outline'])
 
@@ -473,9 +814,11 @@ Focus on:
                     state['current_phase'] = 'writing'
                     self._report_progress(project_id, 'research', 100.0, 'Research completed successfully', 'Research phase completed')
                     logger.info("Research completed, moving to writing phase")
+                    self._log_activity(project_id, 'research', 'completed_research', {'materials_length': len(str(research_result.get('content', '')))})
                     self._save_project_state(project_id)
                 else:
                     state['errors'].append(f"Research failed: {research_result.get('error')}")
+                    self._log_activity(project_id, 'research', 'failed_research', {'error': research_result.get('error')})
                     self._save_project_state(project_id)
                     return research_result
 
@@ -487,31 +830,46 @@ Focus on:
                 if state['chapter_count'] >= self.max_chapters:
                     logger.warning(f"Reached chapter safety cap ({self.max_chapters}), stopping writing phase")
                     break
-                logger.info(f"Phase 3: Writing Chapter {state['chapter_count'] + 1}")
                 
-                chapter_result = self._write_chapter_with_llm(project_id)
+                chapter_num = state['chapter_count'] + 1
+                logger.info(f"Phase 3: Writing Chapter {chapter_num}")
+                self._log_activity(project_id, 'writing', f'starting_chapter_{chapter_num}', {'chapter_number': chapter_num})
+                
+                # Update running summary if we have previous chapters
+                state['running_summary'] = self._update_running_summary(project_id, state)
+                
+                chapter_result = self._write_chapter_with_llm(project_id, update_summary=False)
                 
                 if chapter_result['success']:
                     state['chapter_count'] += 1
                     state['total_words'] += chapter_result.get('words_written', 0)
                     state['iterations'] += 1
                     
+                    # Update running summary after successful chapter write
+                    self._update_running_summary(project_id, state)
+                    
                     if self._is_book_complete(project_id):
                         state['current_phase'] = 'editing'
                         logger.info("All chapters written, moving to editing phase")
                     
+                    self._log_activity(project_id, 'writing', f'completed_chapter_{chapter_num}', {
+                        'words_written': chapter_result.get('words_written', 0),
+                        'chapters_total': state['chapter_count']
+                    })
                     self._save_project_state(project_id)
                     
                     if state['current_phase'] == 'editing':
                         break
                 else:
                     state['errors'].append(f"Chapter writing failed: {chapter_result.get('error')}")
+                    self._log_activity(project_id, 'writing', f'failed_chapter_{chapter_num}', {'error': chapter_result.get('error')})
                     self._save_project_state(project_id)
                     return chapter_result
             
             # Phase 4: Editing and Refinement
             if state['current_phase'] == 'editing':
                 logger.info("Phase 4: Editing and Refinement")
+                self._log_activity(project_id, 'editing', 'starting_editing', {'chapters_to_edit': state['chapter_count']})
                 
                 edit_result = self._execute_editing_phase(project_id)
                 
@@ -519,9 +877,14 @@ Focus on:
                     state['current_phase'] = 'refining'
                     state['completed'] = True
                     logger.info("Editing completed successfully, entering Agent Mode")
+                    self._log_activity(project_id, 'editing', 'completed_editing', {
+                        'chapters_edited': edit_result.get('chapters_edited', 0),
+                        'total_tool_calls': edit_result.get('total_tool_calls', 0)
+                    })
                     self._save_project_state(project_id)
                 else:
                     state['errors'].append(f"Editing failed: {edit_result.get('error')}")
+                    self._log_activity(project_id, 'editing', 'failed_editing', {'error': edit_result.get('error')})
                     self._save_project_state(project_id)
                     return edit_result
             
@@ -554,7 +917,7 @@ Focus on:
             logger.info(f"Starting planning phase for project: {project.title}")
             
             messages = [
-                {"role": "system", "content": self.SYSTEM_PROMPTS["planning"]},
+                {"role": "system", "content": self.SYSTEM_PROMPTS["planning"] + self._get_skill_guidance(project)},
                 {"role": "user", "content": f"""Create a detailed outline for a book with the following specifications:
 
 Title: {project.title}
@@ -629,7 +992,7 @@ Format the outline in a structured way that can guide the writing process."""}
             logger.info(f"Starting research phase for project: {project.title}")
             
             messages = [
-                {"role": "system", "content": self.SYSTEM_PROMPTS["research"]},
+                {"role": "system", "content": self.SYSTEM_PROMPTS["research"] + self._get_skill_guidance(project)},
                 {"role": "user", "content": f"""Based on the following book outline, provide research notes and background information:
 
 Title: {project.title}
@@ -764,49 +1127,59 @@ This research will inform the writing process."""}
             logger.warning(f"Could not read previous chapter {chapter_number} for {project_id}: {e}")
             return None
 
-    @retry_with_backoff(max_retries=3, base_delay=2.0, max_delay=60.0)
-    def _write_chapter_with_llm(self, project_id: str) -> Dict[str, Any]:
-        """Write a chapter using the LLM."""
+    def _write_chapter_with_llm(self, project_id: str, update_summary: bool = True) -> Dict[str, Any]:
+        """
+        Write a chapter using the LLM with adaptive retry strategies and partial recovery.
+        
+        Args:
+            project_id: The project identifier
+            update_summary: Whether to update the running summary after successful write
+        """
         state = self.project_states[project_id]
         project = state['project']
         chapter_number = state['chapter_count'] + 1
         outline = state.get('outline', {})
         research = state.get('research_materials', {})
         
-        try:
-            # Get chapter-specific guidance from outline
-            chapters = outline.get('chapters', [])
-            chapter_guidance = ""
-            total_expected_chapters = len(chapters) if chapters else max(1, project.target_length // 5000)
+        # Adaptive retry configuration
+        max_adaptive_retries = 3
+        adaptive_attempts = 0
+        
+        while adaptive_attempts < max_adaptive_retries:
+            try:
+                # Get chapter-specific guidance from outline
+                chapters = outline.get('chapters', [])
+                chapter_guidance = ""
+                total_expected_chapters = len(chapters) if chapters else max(1, project.target_length // 5000)
 
-            # Report progress
-            progress = 30.0 + (min(chapter_number - 1, total_expected_chapters) / total_expected_chapters) * 60.0
-            self._report_progress(project_id, 'writing', progress, f'Writing chapter {chapter_number} of {total_expected_chapters}...', f'Writing: {project.title} - Chapter {chapter_number}')
+                # Report progress
+                progress = 30.0 + (min(chapter_number - 1, total_expected_chapters) / total_expected_chapters) * 60.0
+                self._report_progress(project_id, 'writing', progress, f'Writing chapter {chapter_number} of {total_expected_chapters}...', f'Writing: {project.title} - Chapter {chapter_number}')
 
-            if chapter_number <= len(chapters):
-                chapter_info = chapters[chapter_number - 1]
-                chapter_guidance = f"\nChapter {chapter_number} should cover: {chapter_info.get('summary', 'Continue the story')}"
+                if chapter_number <= len(chapters):
+                    chapter_info = chapters[chapter_number - 1]
+                    chapter_guidance = f"\nChapter {chapter_number} should cover: {chapter_info.get('summary', 'Continue the story')}"
 
-            # Build context from the actual previous chapter so the LLM keeps
-            # continuity in tone, characters, and plot across chapter boundaries.
-            previous_context = ""
-            if chapter_number > 1:
-                prev_content = self._read_previous_chapter(project_id, chapter_number - 1)
-                if prev_content:
-                    # Keep only the tail (ending) to bound prompt size while still
-                    # giving the model the immediate lead-in to continue from.
-                    prev_tail = prev_content[-3000:]
-                    previous_context = (
-                        f"\n\nPrevious chapter (Chapter {chapter_number - 1}) ending:\n"
-                        f"{prev_tail}\n\nContinue seamlessly from where this left off, "
-                        f"maintaining the established voice, characters, and plot."
-                    )
-                else:
-                    previous_context = "\n\nPrevious chapter summaries are available in the outline."
+                # Build context from the actual previous chapter so the LLM keeps
+                # continuity in tone, characters, and plot across chapter boundaries.
+                previous_context = ""
+                if chapter_number > 1:
+                    prev_content = self._read_previous_chapter(project_id, chapter_number - 1)
+                    if prev_content:
+                        # Keep only the tail (ending) to bound prompt size while still
+                        # giving the model the immediate lead-in to continue from.
+                        prev_tail = prev_content[-3000:]
+                        previous_context = (
+                            f"\n\nPrevious chapter (Chapter {chapter_number - 1}) ending:\n"
+                            f"{prev_tail}\n\nContinue seamlessly from where this left off, "
+                            f"maintaining the established voice, characters, and plot."
+                        )
+                    else:
+                        previous_context = "\n\nPrevious chapter summaries are available in the outline."
 
-            messages = [
-                {"role": "system", "content": self.SYSTEM_PROMPTS["writing"]},
-                {"role": "user", "content": f"""Write Chapter {chapter_number} for the book "{project.title}".
+                messages = [
+                    {"role": "system", "content": self.SYSTEM_PROMPTS["writing"] + self._get_skill_guidance(project)},
+                    {"role": "user", "content": f"""Write Chapter {chapter_number} for the book "{project.title}".
 
 Genre: {project.genre}
 Writing Style: {project.writing_style}
@@ -828,38 +1201,84 @@ Write a complete, engaging chapter that:
 5. Ends with appropriate tension or resolution for this point in the story
 
 Begin the chapter now:"""}
-            ]
+                ]
 
-            response = self.llm.chat(messages, max_tokens=self.chapter_max_tokens)
+                response = self.llm.chat(messages, max_tokens=self.chapter_max_tokens)
+                
+                if response.content:
+                    chapter_content = response.content
+                    word_count = len(chapter_content.split())
+                    
+                    # Check if response is truncated (partial chapter recovery)
+                    if len(response.content) < 500 and adaptive_attempts > 0:
+                        logger.warning(f"Chapter {chapter_number} content seems truncated: {len(response.content)} chars")
+                        adaptive_attempts += 1
+                        continue
+                    
+                    # Save chapter using write_file tool
+                    if 'write_file' in self.tools:
+                        self.tools['write_file'].execute(
+                            project_id=project_id,
+                            path=f"chapters/chapter_{chapter_number}.md",
+                            content=chapter_content
+                        )
+                    
+                    return {
+                        'success': True,
+                        'chapter_number': chapter_number,
+                        'words_written': word_count,
+                        'chapter_title': f'Chapter {chapter_number}',
+                        'content': chapter_content
+                    }
+                else:
+                    adaptive_attempts += 1
+                    if adaptive_attempts < max_adaptive_retries:
+                        logger.warning(f"No content generated for chapter {chapter_number}, attempt {adaptive_attempts}/{max_adaptive_retries}. Trying with adjusted parameters...")
+                        # Adjust parameters for next attempt
+                        self.chapter_max_tokens = max(2048, self.chapter_max_tokens - 1000)
+                        continue
+                    else:
+                        return {
+                            'success': False,
+                            'error': f'No content generated for chapter {chapter_number} after {max_adaptive_retries} attempts'
+                        }
             
-            if response.content:
-                chapter_content = response.content
-                word_count = len(chapter_content.split())
+            except Exception as e:
+                adaptive_attempts += 1
+                if adaptive_attempts < max_adaptive_retries:
+                    logger.warning(f"Chapter writing error on attempt {adaptive_attempts}/{max_adaptive_retries}: {e}. Retrying with fallback strategy...")
+                    # Try fallback: reduce tokens and simplify prompt
+                    try:
+                        self.chapter_max_tokens = max(2048, self.chapter_max_tokens - 1000)
+                        messages_simple = [
+                            {"role": "system", "content": "Write a chapter for a fiction book. Keep it engaging and well-structured."},
+                            {"role": "user", "content": f"Write Chapter {chapter_number} for the book '{project.title}'. Genre: {project.genre}. Writing Style: {project.writing_style}. Continue the story."}
+                        ]
+                        response = self.llm.chat(messages_simple, max_tokens=self.chapter_max_tokens)
+                        if response and hasattr(response, 'content') and response.content:
+                            chapter_content = response.content
+                            word_count = len(chapter_content.split())
+                            
+                            if 'write_file' in self.tools:
+                                self.tools['write_file'].execute(
+                                    project_id=project_id,
+                                    path=f"chapters/chapter_{chapter_number}.md",
+                                    content=chapter_content
+                                )
+                            
+                            return {
+                                'success': True,
+                                'chapter_number': chapter_number,
+                                'words_written': word_count,
+                                'chapter_title': f'Chapter {chapter_number}',
+                                'content': chapter_content,
+                                'fallback_strategy_used': True
+                            }
+                    except Exception as fallback_e:
+                        logger.error(f"Fallback strategy also failed: {fallback_e}")
                 
-                # Save chapter using write_file tool
-                if 'write_file' in self.tools:
-                    self.tools['write_file'].execute(
-                        project_id=project_id,
-                        path=f"chapters/chapter_{chapter_number}.md",
-                        content=chapter_content
-                    )
-                
-                return {
-                    'success': True,
-                    'chapter_number': chapter_number,
-                    'words_written': word_count,
-                    'chapter_title': f'Chapter {chapter_number}',
-                    'content': chapter_content
-                }
-            else:
-                return {
-                    'success': False,
-                    'error': f'No content generated for chapter {chapter_number}'
-                }
-                
-        except Exception as e:
-            logger.error(f"Chapter writing error: {e}")
-            return {'success': False, 'error': str(e)}
+                logger.error(f"All adaptive retry attempts failed for chapter {chapter_number}: {e}")
+                return {'success': False, 'error': str(e)}
     
     def _execute_editing_phase(self, project_id: str) -> Dict[str, Any]:
         """
@@ -923,6 +1342,9 @@ Always include "project_id": "{project_id}" in every tool call.
 
 Start by reading chapter 1 and begin editing it."""
 
+            # Perform cross-chapter consistency check before editing
+            self._perform_cross_chapter_consistency_check(project_id, state)
+            
             # Iterate through each chapter and use AgentMode to edit it
             for chapter_num in range(1, state['chapter_count'] + 1):
                 logger.info(f"Editing chapter {chapter_num} of {state['chapter_count']}")
@@ -930,6 +1352,16 @@ Start by reading chapter 1 and begin editing it."""
                 # Update progress
                 progress = 30 + ((chapter_num - 1) / state['chapter_count']) * 60
                 self._report_progress(project_id, 'editing', progress, f'Editing chapter {chapter_num}...', f'Processing chapter {chapter_num}/{state["chapter_count"]}')
+                
+                # Get running summary for context if available
+                running_summary = state.get('running_summary', {})
+                summary_context = ""
+                if running_summary.get('summary_content'):
+                    summary_context = f"\n\nRunning Story Summary:\n{running_summary['summary_content']}"
+                    if running_summary.get('characters_introduced'):
+                        summary_context += f"\nCharacters introduced so far: {', '.join(running_summary['characters_introduced'])}"
+                    if running_summary.get('locations_mentioned'):
+                        summary_context += f"\nLocations mentioned so far: {', '.join(running_summary['locations_mentioned'])}"
                 
                 # Initial message to start editing this chapter
                 edit_message = f"""Review and edit chapter {chapter_num}.
@@ -942,6 +1374,7 @@ Read the full chapter file at chapters/chapter_{chapter_num}.md, then:
 4. Look for any inconsistencies with characters or plot
 5. Make targeted edits using edit_file to improve the chapter
 6. Be precise with your search terms to avoid incorrect replacements
+{summary_context}
 
 After making edits, briefly summarize what you changed."""
                 
@@ -1397,12 +1830,16 @@ Paths are relative to the project root (e.g., "chapters/chapter_1.md")."""
             
             self._save_project_state(project_id)
             
+            # Generate proactive suggestions based on project state
+            suggestions = self._generate_chat_suggestions(project_id, state)
+            
             return {
                 'success': True,
                 'response': result.get('content', ''),
                 'tool_calls': result.get('tool_results', []),
                 'iterations': result.get('iterations', 1),
-                'finished': result.get('finished', True)
+                'finished': result.get('finished', True),
+                'suggestions': suggestions
             }
             
         except Exception as e:
@@ -1410,6 +1847,65 @@ Paths are relative to the project root (e.g., "chapters/chapter_1.md")."""
             import traceback
             logger.error(f"Full traceback: {traceback.format_exc()}")
             return {'success': False, 'error': str(e)}
+
+    def _generate_chat_suggestions(self, project_id: str, state: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """
+        Generate proactive suggestions based on current project state.
+        
+        Returns a list of suggested actions the user might want to take,
+        such as checking character consistency, evaluating chapters, or
+        updating the story outline.
+        """
+        suggestions = []
+        project = state.get('project')
+        
+        if not project:
+            return suggestions
+        
+        # Suggestion 1: If book has chapters but no editing phase yet
+        if state['current_phase'] in ['writing', 'research', 'planning'] and state['chapter_count'] >= 3:
+            suggestions.append({
+                'type': 'editing_suggestion',
+                'title': 'Review and Edit Chapters',
+                'description': f'You have {state["chapter_count"]} chapters written. Consider running the editing phase to review for grammar, consistency, and quality.'
+            })
+        
+        # Suggestion 2: If we have a running summary with characters
+        running_summary = state.get('running_summary', {})
+        if running_summary.get('characters_introduced') and len(running_summary['characters_introduced']) > 2:
+            suggestions.append({
+                'type': 'consistency_check',
+                'title': 'Check Character Consistency',
+                'description': f'You have introduced {len(running_summary["characters_introduced"])} characters so far. Consider checking for consistent character descriptions across chapters.'
+            })
+        
+        # Suggestion 3: If book is in editing phase but has potential issues
+        if state['current_phase'] == 'editing':
+            consistency_notes = state.get('consistency_notes', [])
+            if consistency_notes:
+                suggestions.append({
+                    'type': 'consistency_review',
+                    'title': 'Review Cross-Chapter Consistency',
+                    'description': f'Found {len(consistency_notes)} consistency notes during editing. Review character and location mentions across chapters.'
+                })
+        
+        # Suggestion 4: If book is near completion
+        if state['current_phase'] == 'refining' or state.get('completed', False):
+            suggestions.append({
+                'type': 'export_suggestion',
+                'title': 'Export Your Book',
+                'description': 'Your book is ready! Consider exporting to PDF, EPUB, DOCX, or plain text formats.'
+            })
+        
+        # Suggestion 5: If writing phase and chapter count is low
+        if state['current_phase'] == 'writing' and state['chapter_count'] < 5:
+            suggestions.append({
+                'type': 'outline_review',
+                'title': 'Review Chapter Outline',
+                'description': 'Consider reviewing your chapter outline to ensure pacing and plot structure align with your vision.'
+            })
+        
+        return suggestions
 
 
     def chat_with_agent_stream(
@@ -1518,6 +2014,14 @@ Paths are relative to the project root (e.g., "chapters/chapter_1.md")."""
                             "content": final_content
                         })
                         self._save_project_state(project_id)
+                        
+                        # Generate and yield suggestions
+                        suggestions = self._generate_chat_suggestions(project_id, state)
+                        if suggestions:
+                            yield {
+                                'type': 'suggestions',
+                                'data': suggestions
+                            }
 
                     yield update
             else:

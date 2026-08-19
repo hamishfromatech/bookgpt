@@ -1,0 +1,288 @@
+{% extends "base.html" %}
+
+{% block title %}Help & Best Practices | BookGPT{% endblock %}
+
+{% block content %}
+<div class="space-y-8 animate-fade-in pb-20">
+    <!-- Header -->
+    <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-6 p-8 bg-surface-50 dark:bg-surface-900/50 rounded-[2rem] border border-surface-200 dark:border-white/5 shadow-soft">
+        <div>
+            <h1 class="font-display text-3xl font-semibold text-slate-900 dark:text-white mb-2">Help & Best Practices</h1>
+            <p class="text-sm font-medium text-slate-500 dark:text-slate-400">Get the most out of your AI-assisted book writing experience</p>
+        </div>
+        <button onclick="window.location.href='/'" class="inline-flex items-center justify-center gap-2 px-6 py-3.5 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-xl font-medium transition-all hover:-translate-y-0.5 active:translate-y-0 shadow-soft">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+            <span>Back to Dashboard</span>
+        </button>
+    </div>
+
+    <!-- Main Content Grid -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        <!-- Sidebar Navigation -->
+        <div class="lg:col-span-3 space-y-6">
+            <div class="bg-surface-50 dark:bg-surface-900/50 p-6 rounded-[2rem] border border-surface-200 dark:border-white/5 shadow-soft sticky top-8">
+                <h3 class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-6">Contents</h3>
+                <nav class="space-y-3">
+                    <a href="#getting-started" class="block text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-accent transition-colors">Getting Started</a>
+                    <a href="#writing-pipeline" class="block text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-accent transition-colors">Writing Pipeline</a>
+                    <a href="#planning-phase" class="block text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-accent transition-colors">Phase 1: Planning</a>
+                    <a href="#research-phase" class="block text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-accent transition-colors">Phase 2: Research</a>
+                    <a href="#writing-phase" class="block text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-accent transition-colors">Phase 3: Chapter Writing</a>
+                    <a href="#editing-phase" class="block text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-accent transition-colors">Phase 4: Editing</a>
+                    <a href="#agent-chat" class="block text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-accent transition-colors">Agent Chat & Suggestions</a>
+                    <a href="#exporting" class="block text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-accent transition-colors">Exporting Your Book</a>
+                    <a href="#pro-tips" class="block text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-accent transition-colors">Pro Tips & Tricks</a>
+                    <a href="#troubleshooting" class="block text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-accent transition-colors">Troubleshooting</a>
+                </nav>
+            </div>
+        </div>
+
+        <!-- Documentation Content -->
+        <div class="lg:col-span-9 space-y-8">
+            
+            <!-- Getting Started -->
+            <section id="getting-started" class="bg-surface-50 dark:bg-surface-900/50 p-8 rounded-[2rem] border border-surface-200 dark:border-white/5 shadow-soft">
+                <h2 class="font-display text-2xl font-semibold text-slate-900 dark:text-white mb-6">Getting Started</h2>
+                
+                <div class="space-y-4">
+                    <div class="bg-editorial-teal/10 border border-editorial-teal/20 rounded-xl p-5">
+                        <h3 class="text-sm font-bold text-editorial-teal uppercase tracking-widest mb-3">Initial Setup</h3>
+                        <ul class="space-y-2 text-sm text-slate-600 dark:text-slate-300">
+                            <li>• Configure your AI provider (OpenAI API key or local LLM like Ollama/LM Studio)</li>
+                            <li>• Have your book title, genre, and target word count ready</li>
+                            <li>• Choose a writing style: Narrative, Descriptive, Conversational, or Formal</li>
+                        </ul>
+                    </div>
+
+                    <h3 class="text-lg font-semibold text-slate-900 dark:text-white mt-6">Creating Your First Project</h3>
+                    <ol class="list-decimal list-inside space-y-2 text-sm text-slate-600 dark:text-slate-300 ml-4">
+                        <li>Click <strong>"New Project"</strong> on the dashboard</li>
+                        <li>Fill in required details: Title, Genre, Target Words (recommended 30K-60K for novels), Writing Style</li>
+                        <li>Add a brief description of your book's premise</li>
+                        <li>Click <strong>Create Manuscript</strong></li>
+                    </ol>
+                </div>
+            </section>
+
+            <!-- Writing Pipeline -->
+            <section id="writing-pipeline" class="bg-surface-50 dark:bg-surface-900/50 p-8 rounded-[2rem] border border-surface-200 dark:border-white/5 shadow-soft">
+                <h2 class="font-display text-2xl font-semibold text-slate-900 dark:text-white mb-6">Understanding the Writing Pipeline</h2>
+                
+                <p class="text-sm text-slate-600 dark:text-slate-300 mb-4">BookGPT uses a sophisticated 5-phase agentic pipeline modeled after professional coding agents:</p>
+                
+                <div class="flex flex-wrap gap-3 mb-6">
+                    <span class="px-3 py-1.5 bg-accent/10 text-accent rounded-full text-xs font-bold border border-accent/20">Planning</span>
+                    <svg class="w-4 h-4 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                    <span class="px-3 py-1.5 bg-editorial-gold/10 text-editorial-gold rounded-full text-xs font-bold border border-editorial-gold/20">Research</span>
+                    <svg class="w-4 h-4 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                    <span class="px-3 py-1.5 bg-editorial-teal/10 text-editorial-teal rounded-full text-xs font-bold border border-editorial-teal/20">Writing</span>
+                    <svg class="w-4 h-4 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                    <span class="px-3 py-1.5 bg-slate-200 dark:bg-white/10 text-slate-600 dark:text-slate-300 rounded-full text-xs font-bold border border-surface-200 dark:border-white/10">Editing</span>
+                    <svg class="w-4 h-4 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                    <span class="px-3 py-1.5 bg-accent/10 text-accent rounded-full text-xs font-bold border border-accent/20">Refining</span>
+                </div>
+
+                <p class="text-sm text-slate-600 dark:text-slate-300">Each phase builds upon the previous one, ensuring narrative coherence and quality throughout your manuscript.</p>
+            </section>
+
+            <!-- Phase 1 -->
+            <section id="planning-phase" class="bg-surface-50 dark:bg-surface-900/50 p-8 rounded-[2rem] border border-surface-200 dark:border-white/5 shadow-soft">
+                <h2 class="font-display text-2xl font-semibold text-slate-900 dark:text-white mb-6">Phase 1: Planning & Outline Generation</h2>
+                
+                <p class="text-sm text-slate-600 dark:text-slate-300 mb-4">The agent creates a detailed chapter-by-chapter outline including story premise, characters, plot points, and character arcs.</p>
+
+                <div class="bg-white dark:bg-white/5 border border-surface-200 dark:border-white/10 rounded-xl p-5 mt-4">
+                    <h3 class="text-sm font-bold text-slate-900 dark:text-white mb-3">💡 Tips for Success</h3>
+                    <ul class="space-y-2 text-sm text-slate-600 dark:text-slate-300">
+                        <li>• <strong>Be specific with genre:</strong> The more specific, the better the agent understands reader expectations</li>
+                        <li>• <strong>Set realistic target lengths:</strong> Short stories (5K-10K), Novellas (20K-30K), Standard novels (50K-80K)</li>
+                        <li>• <strong>Review the outline carefully:</strong> You can ask the agent to adjust via Agent Chat before proceeding</li>
+                    </ul>
+                </div>
+            </section>
+
+            <!-- Phase 2 -->
+            <section id="research-phase" class="bg-surface-50 dark:bg-surface-900/50 p-8 rounded-[2rem] border border-surface-200 dark:border-white/5 shadow-soft">
+                <h2 class="font-display text-2xl font-semibold text-slate-900 dark:text-white mb-6">Phase 2: Research & Background</h2>
+                
+                <p class="text-sm text-slate-600 dark:text-slate-300 mb-4">The agent gathers background information for world-building, character research, setting descriptions, and genre-specific elements.</p>
+
+                <div class="bg-white dark:bg-white/5 border border-surface-200 dark:border-white/10 rounded-xl p-5 mt-4">
+                    <h3 class="text-sm font-bold text-slate-900 dark:text-white mb-3">💡 Tips for Success</h3>
+                    <ul class="space-y-2 text-sm text-slate-600 dark:text-slate-300">
+                        <li>• <strong>Provide context in description:</strong> Include specific world-building elements you want explored</li>
+                        <li>• <strong>Review research notes:</strong> The agent generates <code>research_notes.md</code> with valuable context</li>
+                    </ul>
+                </div>
+            </section>
+
+            <!-- Phase 3 -->
+            <section id="writing-phase" class="bg-surface-50 dark:bg-surface-900/50 p-8 rounded-[2rem] border border-surface-200 dark:border-white/5 shadow-soft">
+                <h2 class="font-display text-2xl font-semibold text-slate-900 dark:text-white mb-6">Phase 3: Chapter Writing</h2>
+                
+                <p class="text-sm text-slate-600 dark:text-slate-300 mb-4">The agent writes chapters sequentially, maintaining narrative flow, character consistency, and vivid descriptions.</p>
+
+                <div class="bg-white dark:bg-white/5 border border-surface-200 dark:border-white/10 rounded-xl p-5 mt-4">
+                    <h3 class="text-sm font-bold text-slate-900 dark:text-white mb-3">💡 Tips for Success</h3>
+                    <ul class="space-y-2 text-sm text-slate-600 dark:text-slate-300">
+                        <li>• <strong>Let the agent work sequentially:</strong> It reads previous chapters to maintain continuity</li>
+                        <li>• <strong>Monitor progress:</strong> Use the monitoring dashboard to track current chapter and total words</li>
+                        <li>• <strong>Adaptive recovery:</strong> If generation fails, the agent automatically tries fallback strategies</li>
+                    </ul>
+                </div>
+            </section>
+
+            <!-- Phase 4 -->
+            <section id="editing-phase" class="bg-surface-50 dark:bg-surface-900/50 p-8 rounded-[2rem] border border-surface-200 dark:border-white/5 shadow-soft">
+                <h2 class="font-display text-2xl font-semibold text-slate-900 dark:text-white mb-6">Phase 4: Editing & Refinement</h2>
+                
+                <p class="text-sm text-slate-600 dark:text-slate-300 mb-4">The agent performs targeted edits across all chapters for grammar, consistency, pacing, and dialogue quality.</p>
+
+                <div class="bg-editorial-teal/10 border border-editorial-teal/20 rounded-xl p-5 mt-4">
+                    <h3 class="text-sm font-bold text-editorial-teal mb-3">Cross-Chapter Consistency Checks</h3>
+                    <p class="text-sm text-slate-600 dark:text-slate-300">Before editing each chapter, the agent uses <code>grep_search</code> to verify character name consistency, check location mentions, and flag potential plot holes.</p>
+                </div>
+
+                <div class="bg-white dark:bg-white/5 border border-surface-200 dark:border-white/10 rounded-xl p-5 mt-4">
+                    <h3 class="text-sm font-bold text-slate-900 dark:text-white mb-3">💡 Tips for Success</h3>
+                    <ul class="space-y-2 text-sm text-slate-600 dark:text-slate-300">
+                        <li>• <strong>Review editing notes:</strong> The agent generates <code>editing_notes.md</code> summarizing all changes</li>
+                        <li>• <strong>Use agent suggestions:</strong> Proactive recommendations appear in the chat drawer during editing</li>
+                    </ul>
+                </div>
+            </section>
+
+            <!-- Agent Chat -->
+            <section id="agent-chat" class="bg-surface-50 dark:bg-surface-900/50 p-8 rounded-[2rem] border border-surface-200 dark:border-white/5 shadow-soft">
+                <h2 class="font-display text-2xl font-semibold text-slate-900 dark:text-white mb-6">Agent Chat & Proactive Suggestions</h2>
+                
+                <p class="text-sm text-slate-600 dark:text-slate-300 mb-4">Click <strong>"Agent Chat"</strong> on the monitoring dashboard to open the sliding chat drawer with your Supervisor AI.</p>
+
+                <div class="bg-white dark:bg-white/5 border border-surface-200 dark:border-white/10 rounded-xl p-5 mt-4">
+                    <h3 class="text-sm font-bold text-slate-900 dark:text-white mb-3">Proactive Suggestion Types</h3>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm text-left text-slate-600 dark:text-slate-300">
+                            <thead class="text-xs text-slate-500 uppercase bg-surface-100 dark:bg-white/5">
+                                <tr>
+                                    <th class="px-3 py-2">Suggestion</th>
+                                    <th class="px-3 py-2">When It Appears</th>
+                                    <th class="px-3 py-2">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr class="border-b border-surface-200 dark:border-white/10">
+                                    <td class="px-3 py-2 font-medium">Review and Edit Chapters</td>
+                                    <td class="px-3 py-2">3+ chapters written, not in editing phase</td>
+                                    <td class="px-3 py-2">Recommends starting editing phase</td>
+                                </tr>
+                                <tr class="border-b border-surface-200 dark:border-white/10">
+                                    <td class="px-3 py-2 font-medium">Check Character Consistency</td>
+                                    <td class="px-3 py-2">Multiple characters introduced</td>
+                                    <td class="px-3 py-2">Offers to verify descriptions across chapters</td>
+                                </tr>
+                                <tr class="border-b border-surface-200 dark:border-white/10">
+                                    <td class="px-3 py-2 font-medium">Review Cross-Chapter Consistency</td>
+                                    <td class="px-3 py-2">During editing with consistency notes</td>
+                                    <td class="px-3 py-2">Highlights specific inconsistencies found</td>
+                                </tr>
+                                <tr class="border-b border-surface-200 dark:border-white/10">
+                                    <td class="px-3 py-2 font-medium">Export Your Book</td>
+                                    <td class="px-3 py-2">In refining/completed phase</td>
+                                    <td class="px-3 py-2">Reminds of available export formats</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="bg-white dark:bg-white/5 border border-surface-200 dark:border-white/10 rounded-xl p-5 mt-4">
+                    <h3 class="text-sm font-bold text-slate-900 dark:text-white mb-3">💡 How to Use Agent Chat Effectively</h3>
+                    <ul class="space-y-2 text-sm text-slate-600 dark:text-slate-300">
+                        <li>• <strong>Be specific:</strong> Instead of "make it better", say "expand chapter 3's opening scene with sensory details"</li>
+                        <li>• <strong>Reference specific chapters:</strong> "In chapter 5, the protagonist's motivation feels unclear. Can you clarify?"</li>
+                        <li>• <strong>Use tool-specific commands:</strong> "Check character consistency for 'Sarah' across all chapters"</li>
+                    </ul>
+                </div>
+            </section>
+
+            <!-- Exporting -->
+            <section id="exporting" class="bg-surface-50 dark:bg-surface-900/50 p-8 rounded-[2rem] border border-surface-200 dark:border-white/5 shadow-soft">
+                <h2 class="font-display text-2xl font-semibold text-slate-900 dark:text-white mb-6">Exporting Your Book</h2>
+                
+                <p class="text-sm text-slate-600 dark:text-slate-300 mb-4">Once your book reaches the "refining" or "completed" phase, export in multiple formats:</p>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
+                    <div class="bg-white dark:bg-white/5 border border-surface-200 dark:border-white/10 rounded-xl p-4">
+                        <h3 class="text-sm font-bold text-slate-900 dark:text-white mb-2">PDF</h3>
+                        <p class="text-xs text-slate-600 dark:text-slate-300">Proper formatting, chapter headings, page breaks. Best for printing and sharing.</p>
+                    </div>
+                    <div class="bg-white dark:bg-white/5 border border-surface-200 dark:border-white/10 rounded-xl p-4">
+                        <h3 class="text-sm font-bold text-slate-900 dark:text-white mb-2">EPUB</h3>
+                        <p class="text-xs text-slate-600 dark:text-slate-300">Responsive layout, navigation. Best for e-readers and Kindle.</p>
+                    </div>
+                    <div class="bg-white dark:bg-white/5 border border-surface-200 dark:border-white/10 rounded-xl p-4">
+                        <h3 class="text-sm font-bold text-slate-900 dark:text-white mb-2">DOCX</h3>
+                        <p class="text-xs text-slate-600 dark:text-slate-300">Editable format, familiar interface. Best for further editing in Word.</p>
+                    </div>
+                    <div class="bg-white dark:bg-white/5 border border-surface-200 dark:border-white/10 rounded-xl p-4">
+                        <h3 class="text-sm font-bold text-slate-900 dark:text-white mb-2">Plain Text</h3>
+                        <p class="text-xs text-slate-600 dark:text-slate-300">No formatting, universal compatibility. Best for lightweight sharing.</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Pro Tips -->
+            <section id="pro-tips" class="bg-surface-50 dark:bg-surface-900/50 p-8 rounded-[2rem] border border-surface-200 dark:border-white/5 shadow-soft">
+                <h2 class="font-display text-2xl font-semibold text-slate-900 dark:text-white mb-6">Pro Tips & Tricks</h2>
+                
+                <div class="space-y-4 mt-4">
+                    <div class="bg-editorial-gold/10 border border-editorial-gold/20 rounded-xl p-5">
+                        <h3 class="text-sm font-bold text-editorial-gold mb-2">Optimize Writing Style Selection</h3>
+                        <ul class="space-y-2 text-sm text-slate-600 dark:text-slate-300">
+                            <li>• <strong>Narrative:</strong> Traditional storytelling with clear plot progression</li>
+                            <li>• <strong>Descriptive:</strong> World-building heavy fiction or literary fiction</li>
+                            <li>• <strong>Conversational:</strong> Contemporary fiction, romance, light reading</li>
+                            <li>• <strong>Formal:</strong> Historical fiction, academic non-fiction, serious literature</li>
+                        </ul>
+                    </div>
+
+                    <div class="bg-editorial-teal/10 border border-editorial-teal/20 rounded-xl p-5">
+                        <h3 class="text-sm font-bold text-editorial-teal mb-2">Leverage Agent Activity Logging</h3>
+                        <p class="text-sm text-slate-600 dark:text-slate-300">The activity log shows phase transitions, chapter completion status, tool calls made by the agent, and consistency check results. Use this to understand the agent's decision-making process.</p>
+                    </div>
+
+                    <div class="bg-accent/10 border border-accent/20 rounded-xl p-5">
+                        <h3 class="text-sm font-bold text-accent mb-2">Handle Interruptions Gracefully</h3>
+                        <p class="text-sm text-slate-600 dark:text-slate-300">If the writing process is interrupted, the agent saves state to the database automatically. Use the "Resume" button to continue from where it left off. Running summaries and activity logs are preserved.</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Troubleshooting -->
+            <section id="troubleshooting" class="bg-surface-50 dark:bg-surface-900/50 p-8 rounded-[2rem] border border-surface-200 dark:border-white/5 shadow-soft">
+                <h2 class="font-display text-2xl font-semibold text-slate-900 dark:text-white mb-6">Troubleshooting Common Issues</h2>
+                
+                <div class="space-y-4 mt-4">
+                    <div class="border border-red-200 dark:border-red-900/30 rounded-xl p-5">
+                        <h3 class="text-sm font-bold text-red-600 dark:text-red-400 mb-2">Chapter Generation Fails or Times Out</h3>
+                        <p class="text-sm text-slate-600 dark:text-slate-300 mb-2"><strong>Solution:</strong> The agent uses adaptive retry strategies with reduced tokens and simplified prompts. If all retries fail, check your LLM provider's API status or rate limits.</p>
+                    </div>
+
+                    <div class="border border-yellow-200 dark:border-yellow-900/30 rounded-xl p-5">
+                        <h3 class="text-sm font-bold text-yellow-600 dark:text-yellow-400 mb-2">Inconsistent Character Names Across Chapters</h3>
+                        <p class="text-sm text-slate-600 dark:text-slate-300 mb-2"><strong>Solution:</strong> Open Agent Chat and use the suggestion "Check character and location consistency across all chapters". Review grep_search results and request targeted edits.</p>
+                    </div>
+
+                    <div class="border border-blue-200 dark:border-blue-900/30 rounded-xl p-5">
+                        <h3 class="text-sm font-bold text-blue-600 dark:text-blue-400 mb-2">Chapter Seems Rushed or Incomplete</h3>
+                        <p class="text-sm text-slate-600 dark:text-slate-300 mb-2"><strong>Solution:</strong> Check the running summary to verify story progression. Use Agent Chat to request expansion: "Expand chapter X's climax scene with more detail". The agent can use write_file for complete rewrites.</p>
+                    </div>
+                </div>
+            </section>
+
+        </div>
+    </div>
+</div>
+{% endblock %}

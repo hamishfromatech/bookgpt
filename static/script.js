@@ -995,24 +995,19 @@ async function sendCommand() {
                         }
                         else if (update.type === 'tool_call') {
                             const tc = update.data;
-                            const toolDiv = document.getElementById(`tc-${tc.id}`);
-                            if (toolDiv) {
-                                try {
-                                    const args = JSON.parse(tc.function.arguments || '{}');
-                                    delete args.project_id;
-                                    const argsStr = Object.keys(args).length > 0 ? JSON.stringify(args, null, 2) : '';
-                                    const pre = toolDiv.querySelector('pre');
-                                    if (pre && argsStr) {
-                                        pre.textContent = argsStr;
-                                        toolDiv.querySelector('.args-section')?.classList.remove('hidden');
-                                    }
-                                } catch (e) { /* ignore partial json */ }
+                            if (tc.id) {
+                                updateToolCallArgsUI(tc);
+                                feed.scrollTop = feed.scrollHeight;
                             }
                         }
                         else if (update.type === 'tool_result') {
                             const result = update.data;
                             updateToolResultUI(toolContainer, result);
                             feed.scrollTop = feed.scrollHeight;
+                        }
+                        else if (update.type === 'suggestions') {
+                            // Update proactive suggestions panel
+                            updateAgentSuggestions(update.data);
                         }
                     } catch (e) {
                         console.error('Error parsing SSE line', e, line);
@@ -1071,143 +1066,295 @@ function appendChatMessage(role, content, id = null) {
     return wrapper;
 }
 
+// ---------------------------------------------------------------------------
+// Tool-call card rendering for the Supervisor AI chat drawer
+// ---------------------------------------------------------------------------
+// Friendly metadata + colour-coding per tool so cards read like an activity
+// log ("Read File · chapters/chapter_1.md · Done") instead of a raw JSON dump.
+const TOOL_META = {
+    read_file:      { label: 'Read File',    color: 'teal',   blurb: 'Read a project file',
+        icon: 'M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253' },
+    write_file:     { label: 'Write File',   color: 'accent', blurb: 'Create or overwrite a file',
+        icon: 'M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z' },
+    edit_file:      { label: 'Edit File',    color: 'gold',   blurb: 'Search & replace text',
+        icon: 'M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z' },
+    list_directory: { label: 'List Files',   color: 'teal',   blurb: 'Browse project structure',
+        icon: 'M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z' },
+    search_files:   { label: 'Search Files', color: 'teal',   blurb: 'Glob file search',
+        icon: 'M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z' },
+    grep_search:    { label: 'Grep Content', color: 'teal',   blurb: 'Search file contents',
+        icon: 'M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z' },
+    delete_file:    { label: 'Delete File',  color: 'red',    blurb: 'Remove a file',
+        icon: 'M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16' },
+};
+const TOOL_FALLBACK_META = { label: 'AI Tool', color: 'slate', blurb: '', icon: 'M11.42 15.17L17.25 21A2.652 2.652 0 0021 17.25l-5.83-5.83m1.41-1.41L17.25 8.99A2.652 2.652 0 0013 4.25L7.17 10.08m1.41 1.41L13 4.25' };
+
+const TOOL_COLORS = {
+    teal:   { dot: 'bg-editorial-teal', soft: 'bg-editorial-teal/10', text: 'text-editorial-teal', border: 'border-editorial-teal/30' },
+    accent: { dot: 'bg-accent',          soft: 'bg-accent/10',        text: 'text-accent',          border: 'border-accent/30' },
+    gold:   { dot: 'bg-editorial-gold',  soft: 'bg-editorial-gold/10',text: 'text-editorial-gold',  border: 'border-editorial-gold/30' },
+    red:    { dot: 'bg-red-500',         soft: 'bg-red-500/10',       text: 'text-red-500',         border: 'border-red-500/30' },
+    slate:  { dot: 'bg-slate-400',       soft: 'bg-surface-100 dark:bg-white/10', text: 'text-slate-500 dark:text-slate-300', border: 'border-surface-200 dark:border-white/10' },
+};
+
+function toolMeta(name) {
+    return TOOL_META[name] || { ...TOOL_FALLBACK_META, label: name ? name.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) : 'AI Tool' };
+}
+
 function addToolCallUI(container, tc) {
     const tcId = tc.id;
-    if (!tcId) return; // Skip if no ID yet
+    if (!tcId) return; // Skip until we have an ID (args arrive in a later event)
 
-    const toolName = tc.function.name || 'AI Tool';
-    let args = {};
-    try {
-        if (tc.function.arguments) {
-            args = JSON.parse(tc.function.arguments);
-        }
-    } catch (e) {
-        // Ignore partial JSON errors
-    }
-    
-    // Remove "project_id" from visible arguments
-    delete args.project_id;
-    const argsStr = Object.keys(args).length > 0 ? JSON.stringify(args, null, 2) : '';
+    const rawName = (tc.function && tc.function.name) || '';
+    const meta = toolMeta(rawName);
+    const c = TOOL_COLORS[meta.color] || TOOL_COLORS.slate;
 
     const toolDiv = document.createElement('div');
     toolDiv.id = `tc-${tcId}`;
-    toolDiv.className = 'rounded-xl border border-surface-200 dark:border-white/10 overflow-hidden bg-surface-50 dark:bg-black/20 mb-4';
+    toolDiv.className = `tool-card rounded-xl border ${c.border} bg-surface-50 dark:bg-black/20 overflow-hidden mb-3 animate-slide-in`;
+    toolDiv.dataset.toolName = rawName;
     toolDiv.innerHTML = `
-        <div class="flex items-center justify-between px-4 py-3 bg-surface-100 dark:bg-white/5 cursor-pointer" onclick="toggleToolDetails('${tcId}')">
-            <div class="flex items-center gap-3">
-                <div class="w-2 h-2 rounded-full bg-accent animate-pulse"></div>
-                <span class="text-xs font-bold font-mono text-slate-600 dark:text-slate-300">Using ${toolName}</span>
-                <span class="text-[10px] text-slate-400 bg-surface-200 dark:bg-white/10 px-2 py-0.5 rounded-full">Click to expand</span>
+        <div class="flex items-center gap-3 px-3.5 py-3 cursor-pointer hover:bg-surface-100/60 dark:hover:bg-white/5 transition-colors" onclick="toggleToolDetails('${tcId}')" title="${meta.blurb}">
+            <div class="w-8 h-8 rounded-lg ${c.soft} ${c.text} flex items-center justify-center shrink-0">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="${meta.icon}"/></svg>
             </div>
-            <svg id="icon-${tcId}" class="w-4 h-4 transition-transform text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2 flex-wrap">
+                    <span class="text-xs font-bold text-slate-700 dark:text-slate-200">${escapeHtml(meta.label)}</span>
+                    <span class="tool-status-badge inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${c.soft} ${c.text}">
+                        <span class="status-dot w-1.5 h-1.5 rounded-full ${c.dot} animate-pulse"></span>
+                        <span class="status-text">Running</span>
+                    </span>
+                </div>
+                <div class="tool-args-chips mt-1 flex flex-wrap gap-1.5"></div>
+            </div>
+            <svg id="icon-${tcId}" class="w-4 h-4 transition-transform text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
             </svg>
         </div>
-        <div id="details-${tcId}" class="p-4 space-y-3 hidden">            <div class="args-section ${argsStr ? '' : 'hidden'}">
-                <div class="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Parameters</div>
-                <pre class="text-[11px] font-mono bg-black/30 p-2 rounded-lg overflow-x-auto text-editorial-teal">${argsStr}</pre>
+        <div id="details-${tcId}" class="px-3.5 pb-3.5 space-y-2.5 hidden border-t border-surface-200 dark:border-white/5">
+            <div class="args-section hidden">
+                <div class="flex items-center justify-between mb-1 mt-3">
+                    <span class="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Parameters</span>
+                    <button class="tool-copy-btn inline-flex items-center gap-1 text-[9px] font-semibold text-slate-400 hover:text-accent transition-colors" onclick="copyToolText(this, this.closest('.args-section').querySelector('.args-pre').textContent)">
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                        Copy
+                    </button>
+                </div>
+                <pre class="args-pre text-[11px] font-mono bg-black/30 p-2.5 rounded-lg overflow-x-auto text-editorial-teal whitespace-pre-wrap break-words"></pre>
             </div>
-            <div class="tool-result-status text-[10px] text-slate-400 italic font-medium flex items-center gap-2">
-                <svg class="w-3 h-3 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.001 0 01-15.357-2m15.357 2H15" />
-                </svg>
-                Executing tool...
+            <div class="tool-result-status text-[10px] font-medium text-slate-400 italic flex items-center gap-2 pt-2">
+                <svg class="w-3 h-3 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.001 0 01-15.357-2m15.357 2H15"/></svg>
+                <span class="status-detail">Executing tool...</span>
             </div>
         </div>
     `;
     container.appendChild(toolDiv);
 }
 
+// Fill in argument chips + the full Parameters JSON once the tool_call event
+// arrives (args stream in after the tool_call_start event).
+function updateToolCallArgsUI(tc) {
+    const toolDiv = document.getElementById(`tc-${tc.id}`);
+    if (!toolDiv) return;
+
+    let args = {};
+    try { args = JSON.parse((tc.function && tc.function.arguments) || '{}'); }
+    catch (e) { return; /* partial JSON — wait for the complete event */ }
+    delete args.project_id;
+
+    const chipsEl = toolDiv.querySelector('.tool-args-chips');
+    if (chipsEl) chipsEl.innerHTML = buildArgChips(toolDiv.dataset.toolName, args).join('');
+
+    const argsStr = Object.keys(args).length > 0 ? JSON.stringify(args, null, 2) : '';
+    const argsSection = toolDiv.querySelector('.args-section');
+    const pre = toolDiv.querySelector('.args-pre');
+    if (argsSection && pre) {
+        if (argsStr) {
+            pre.textContent = argsStr;
+            argsSection.classList.remove('hidden');
+        } else {
+            argsSection.classList.add('hidden');
+        }
+    }
+}
+
+// Surface the most meaningful argument as a compact pill so the user can see
+// what the agent is doing without expanding the card.
+function buildArgChips(toolName, args) {
+    const chip = (label, value, mono = true) => `<span class="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-md bg-surface-100 dark:bg-white/10 text-slate-500 dark:text-slate-300 max-w-full"><span class="opacity-60 shrink-0">${label}</span><span class="${mono ? 'font-mono text-slate-600 dark:text-slate-200' : ''} truncate max-w-[160px]">${escapeHtml(String(value))}</span></span>`;
+    const out = [];
+    if (args.path) out.push(chip('path:', args.path));
+    if (args.directory) out.push(chip('dir:', args.directory));
+    if (args.pattern) out.push(chip('glob:', args.pattern));
+    if (args.query) out.push(chip('query:', `"${args.query}"`));
+    if (args.search_text) out.push(chip('for:', `"${args.search_text}"`));
+    if (args.old_text != null) out.push(chip('old:', `${String(args.old_text).length} chars`, false));
+    if (args.new_text != null) out.push(chip('new:', `${String(args.new_text).length} chars`, false));
+    if (args.line_start != null && args.line_end != null) out.push(chip('lines:', `${args.line_start}-${args.line_end}`));
+    if (args.content != null) {
+        const s = String(args.content);
+        const words = s.trim() ? s.trim().split(/\s+/).length : 0;
+        out.push(chip('content:', `${s.length} chars · ~${words} words`, false));
+    }
+    return out;
+}
+
+// Turn a tool result into a one-line summary + a renderable output block.
+// The point is to avoid dumping raw JSON into the chat: a 1.2k-line chapter
+// reads as "Read 234 lines · 12,000 chars", with the full text available on
+// expand for those who want it.
+function summarizeResult(toolName, res, success, error) {
+    if (!success) return { summary: `Failed: ${error || 'Unknown error'}`, ok: false };
+    if (!res || typeof res !== 'object') return { summary: 'Completed', ok: true };
+
+    switch (toolName) {
+        case 'read_file': {
+            const content = res.content || '';
+            const lines = (res.total_lines != null ? res.total_lines : content.split('\n').length);
+            return {
+                summary: `Read ${lines} line${lines === 1 ? '' : 's'} · ${content.length.toLocaleString()} chars${res.truncated ? ' · truncated' : ''}`,
+                ok: true, output: content, outputLabel: 'File content',
+            };
+        }
+        case 'write_file':
+            return { summary: res.path ? `Saved ${res.path}` : 'File written', ok: true };
+        case 'edit_file':
+            return { summary: `${res.replacements || 0} replacement${(res.replacements || 0) === 1 ? '' : 's'} made in ${res.path || 'file'}`, ok: true };
+        case 'delete_file':
+            return { summary: res.path ? `Deleted ${res.path}` : 'File deleted', ok: true };
+        case 'list_directory': {
+            const items = res.entries || [];
+            const files = items.filter(i => i.type === 'file').length;
+            const dirs = items.filter(i => i.type === 'directory').length;
+            return { summary: `${items.length} entries · ${files} file${files===1?'':'s'}, ${dirs} dir${dirs===1?'':'s'}`, ok: true, output: items, outputLabel: 'Listing', kind: 'list-dir' };
+        }
+        case 'search_files': {
+            const items = res.matches || [];
+            return { summary: `${items.length} file${items.length === 1 ? '' : 's'} matched`, ok: true, output: items, outputLabel: 'Files', kind: 'list-paths' };
+        }
+        case 'grep_search': {
+            const items = res.matches || [];
+            return { summary: `${res.count != null ? res.count : items.length} match${(res.count || items.length) === 1 ? '' : 'es'}${res.truncated ? ' · truncated' : ''}`, ok: true, output: items, outputLabel: 'Matches', kind: 'list-grep' };
+        }
+        default:
+            return { summary: 'Completed', ok: true, output: JSON.stringify(res, null, 2), outputLabel: 'Result', kind: 'json' };
+    }
+}
+
 function updateToolResultUI(container, result) {
     const toolDiv = document.getElementById(`tc-${result.tool_call_id}`);
     if (!toolDiv) return;
 
-    const statusEl = toolDiv.querySelector('.tool-result-status');
+    const meta = toolMeta(toolDiv.dataset.toolName);
+    const c = TOOL_COLORS[meta.color] || TOOL_COLORS.slate;
+    const summary = summarizeResult(toolDiv.dataset.toolName, result.result, result.success, result.error);
+
+    // 1. Header status badge
+    const statusText = toolDiv.querySelector('.status-text');
+    const statusDot = toolDiv.querySelector('.status-dot');
+    const badge = toolDiv.querySelector('.tool-status-badge');
+    if (statusText) statusText.textContent = summary.ok ? 'Done' : 'Failed';
+    if (statusDot) {
+        statusDot.classList.remove('animate-pulse');
+        statusDot.classList.toggle(c.dot, !!summary.ok);
+        if (!summary.ok) statusDot.classList.add('bg-red-500');
+    }
+    if (badge && !summary.ok) {
+        badge.classList.remove(c.soft, c.text);
+        badge.classList.add('bg-red-500/10', 'text-red-500');
+    }
+
+    // 2. Status detail line (inside details) + output block
     const detailsEl = toolDiv.querySelector(`#details-${result.tool_call_id}`);
-    const pulseDot = toolDiv.querySelector('.animate-pulse');
-    const argsSection = toolDiv.querySelector('.args-section');
-    
-    if (pulseDot) {
-        pulseDot.classList.remove('bg-accent', 'animate-pulse');
-        pulseDot.classList.add(result.success ? 'bg-editorial-teal' : 'bg-red-500');
-    }
-
+    const statusEl = toolDiv.querySelector('.tool-result-status');
     if (statusEl) {
-        statusEl.innerHTML = result.success ? 
-            `<svg class="w-3 h-3 text-editorial-teal" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg> Completed successfully` :
-            `<svg class="w-3 h-3 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg> Failed: ${result.error || 'Unknown error'}`;
+        statusEl.classList.remove('italic');
+        statusEl.innerHTML = summary.ok
+            ? `<svg class="w-3 h-3 text-editorial-teal shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg><span class="not-italic text-slate-500 dark:text-slate-300">${escapeHtml(summary.summary)}</span>`
+            : `<svg class="w-3 h-3 text-red-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/></svg><span class="not-italic text-red-500">${escapeHtml(summary.summary)}</span>`;
     }
 
-    // Always create output section for visibility
-    if (detailsEl) {
-        const res = result.result;
-        let output = '';
-        let hasOutput = false;
-        
-        if (result.success && res) {
-            if (res.content) {
-                output = typeof res.content === 'string' ? res.content : String(res.content);
-                hasOutput = true;
-            }
-            else if (res.output) {
-                output = typeof res.output === 'string' ? res.output : String(res.output);
-                hasOutput = true;
-            }
-            else if (res.path) {
-                output = `Operation successful on: ${res.path}`;
-                hasOutput = true;
-            }
-            else if (res.replacements) {
-                output = `Made ${res.replacements} replacement(s)`;
-                hasOutput = true;
-            }
-            else if (res.results) {
-                output = `Found ${res.results.length} items`;
-                hasOutput = true;
-            }
-            else if (res.success !== undefined) {
-                output = 'Operation completed successfully';
-                hasOutput = true;
-            }
-            else {
-                output = JSON.stringify(res, null, 2);
-                hasOutput = output !== '{}';
-            }
-        }
-        else if (!result.success) {
-            output = result.error || 'Operation failed';
-            hasOutput = true;
-        }
-        
-        // Truncate very large outputs
-        if (hasOutput && output.length > 1000) {
-            output = output.substring(0, 1000) + '\n... [output truncated]';
-        }
-
-        // Only create output section if there's something to show
-        if (hasOutput) {
-            const outputDiv = document.createElement('div');
-            outputDiv.className = 'output-section';
-            outputDiv.innerHTML = `
-                <div class="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1 mt-3">Output</div>
-                <pre class="text-[11px] font-mono bg-black/30 p-2 rounded-lg overflow-x-auto text-slate-300 max-h-48 overflow-y-auto">${escapeHtml(output)}</pre>
-            `;
-            detailsEl.appendChild(outputDiv);
-        }
+    if (detailsEl && summary.output != null && summary.output !== '') {
+        detailsEl.appendChild(buildOutputBlock(summary, meta, c));
     }
-    
-    // Auto-expand if there's interesting output or if it failed
-    const hasOutput = detailsEl && detailsEl.querySelector('.output-section');
-    if (!result.success || hasOutput) {
+
+    // 3. Auto-expand only on failure (success stays collapsed — the header
+    // summary already tells the story, and read_file output can be huge).
+    if (!summary.ok) {
         toggleToolDetails(result.tool_call_id, true);
+    }
+}
+
+// Render the output area according to the tool kind: pretty lists for
+// list/search/grep, truncated text for file reads, JSON fallback otherwise.
+function buildOutputBlock(summary, meta, c) {
+    const wrap = document.createElement('div');
+    wrap.className = 'output-section pt-2';
+
+    const headerHtml = `
+        <div class="flex items-center justify-between mb-1">
+            <span class="text-[9px] font-bold text-slate-400 uppercase tracking-widest">${summary.outputLabel}</span>
+            <button class="tool-copy-btn inline-flex items-center gap-1 text-[9px] font-semibold text-slate-400 hover:text-accent transition-colors" onclick="copyToolText(this, this.closest('.output-section').querySelector('pre').textContent)">
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                Copy
+            </button>
+        </div>`;
+
+    if (summary.kind === 'list-dir') {
+        const rows = summary.output.map(i => `<div class="flex items-center gap-2 py-0.5 text-[11px]"><span class="${i.type === 'directory' ? 'text-editorial-gold' : 'text-editorial-teal'}">${i.type === 'directory' ? '📁' : '📄'}</span><span class="font-mono text-slate-600 dark:text-slate-300 truncate">${escapeHtml(i.path)}</span>${i.size != null ? `<span class="text-slate-400 ml-auto shrink-0">${humanSize(i.size)}</span>` : ''}</div>`).join('');
+        wrap.innerHTML = headerHtml + `<div class="bg-black/20 rounded-lg p-2 max-h-48 overflow-y-auto">${rows}</div>`;
+        return wrap;
+    }
+    if (summary.kind === 'list-paths') {
+        const rows = summary.output.map(p => `<div class="flex items-center gap-2 py-0.5 text-[11px]"><span class="text-editorial-teal">📄</span><span class="font-mono text-slate-600 dark:text-slate-300 truncate">${escapeHtml(p)}</span></div>`).join('') || '<div class="text-[11px] text-slate-400 italic">No files found</div>';
+        wrap.innerHTML = headerHtml + `<div class="bg-black/20 rounded-lg p-2 max-h-48 overflow-y-auto">${rows}</div>`;
+        return wrap;
+    }
+    if (summary.kind === 'list-grep') {
+        const rows = summary.output.map(m => `<div class="py-1 text-[11px] border-b border-white/5 last:border-0"><div class="flex items-center gap-2"><span class="text-editorial-teal">·</span><span class="font-mono text-slate-600 dark:text-slate-300 truncate">${escapeHtml(m.file)}:${m.line}</span></div><div class="font-mono text-slate-500 dark:text-slate-400 truncate pl-4">${escapeHtml(m.match)}</div></div>`).join('') || '<div class="text-[11px] text-slate-400 italic">No matches</div>';
+        wrap.innerHTML = headerHtml + `<div class="bg-black/20 rounded-lg p-2 max-h-48 overflow-y-auto">${rows}</div>`;
+        return wrap;
+    }
+
+    // Text / JSON output — truncate big payloads so the chat stays readable.
+    let text = typeof summary.output === 'string' ? summary.output : JSON.stringify(summary.output, null, 2);
+    const MAX = 1500;
+    let truncated = false;
+    if (text.length > MAX) { text = text.substring(0, MAX); truncated = true; }
+    wrap.innerHTML = headerHtml + `<pre class="text-[11px] font-mono bg-black/30 p-2.5 rounded-lg overflow-x-auto text-slate-300 dark:text-slate-200 max-h-56 overflow-y-auto whitespace-pre-wrap break-words">${escapeHtml(text)}${truncated ? '\n\n<span class="text-slate-500">… output truncated (use the tool to view full file)</span>' : ''}</pre>`;
+    return wrap;
+}
+
+function humanSize(bytes) {
+    if (bytes == null) return '';
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function copyToolText(btn, text) {
+    const done = () => {
+        const label = btn.querySelector('span') || btn.lastChild;
+        const orig = btn.innerHTML;
+        btn.innerHTML = '<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg> Copied';
+        setTimeout(() => { btn.innerHTML = orig; }, 1200);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(done).catch(() => {});
+    } else {
+        const ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select();
+        try { document.execCommand('copy'); done(); } catch (e) {}
+        ta.remove();
     }
 }
 
 function escapeHtml(text) {
     const div = document.createElement('div');
-    div.textContent = text;
+    div.textContent = text == null ? '' : String(text);
     return div.innerHTML;
 }
+
 function toggleToolDetails(tcId, forceOpen = false) {
     const details = document.getElementById(`details-${tcId}`);
     const icon = document.getElementById(`icon-${tcId}`);
@@ -1379,6 +1526,82 @@ async function checkLLMStatus() {
             document.getElementById('llmStatus').classList.remove('hidden');
         }
     } catch (e) {}
+}
+
+// Update agent suggestions based on project state
+function updateAgentSuggestions(suggestions) {
+    const content = document.getElementById('suggestionsContent');
+    const noSuggestions = document.getElementById('noSuggestions');
+    
+    if (!suggestions || suggestions.length === 0) {
+        if (noSuggestions) noSuggestions.classList.remove('hidden');
+        // Remove any existing suggestion cards
+        if (content) {
+            const cards = content.querySelectorAll('.suggestion-card');
+            cards.forEach(card => card.remove());
+        }
+        return;
+    }
+    
+    if (noSuggestions) noSuggestions.classList.add('hidden');
+    
+    if (content) {
+        // Clear existing suggestions
+        const cards = content.querySelectorAll('.suggestion-card');
+        cards.forEach(card => card.remove());
+        
+        // Add new suggestion cards
+        suggestions.forEach(sugg => {
+            const card = document.createElement('div');
+            card.className = 'suggestion-card bg-white dark:bg-white/5 border border-surface-200 dark:border-white/10 rounded-xl p-3 cursor-pointer hover:border-editorial-teal/30 transition-all animate-slide-in';
+            card.onclick = () => handleSuggestionClick(sugg);
+            
+            let iconSvg = '';
+            if (sugg.type === 'editing_suggestion') {
+                iconSvg = '<svg class="w-4 h-4 text-editorial-gold" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9l-2.828-2.828z" /></svg>';
+            } else if (sugg.type === 'consistency_check' || sugg.type === 'consistency_review') {
+                iconSvg = '<svg class="w-4 h-4 text-editorial-teal" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>';
+            } else if (sugg.type === 'export_suggestion') {
+                iconSvg = '<svg class="w-4 h-4 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>';
+            } else if (sugg.type === 'outline_review') {
+                iconSvg = '<svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>';
+            }
+            
+            card.innerHTML = `
+                <div class="flex items-start gap-3">
+                    ${iconSvg}
+                    <div>
+                        <div class="text-xs font-bold text-slate-900 dark:text-white mb-1">${sugg.title}</div>
+                        <div class="text-[12px] text-slate-600 dark:text-slate-300 leading-relaxed">${sugg.description}</div>
+                    </div>
+                </div>
+            `;
+            
+            content.appendChild(card);
+        });
+    }
+}
+
+function handleSuggestionClick(suggestion) {
+    // Generate a command based on the suggestion
+    let command = '';
+    if (suggestion.type === 'editing_suggestion') {
+        command = 'Please start the editing phase to review and improve all chapters.';
+    } else if (suggestion.type === 'consistency_check' || suggestion.type === 'consistency_review') {
+        command = 'Please check character and location consistency across all chapters using grep_search.';
+    } else if (suggestion.type === 'export_suggestion') {
+        command = 'How can I export my book? What formats are available?';
+    } else if (suggestion.type === 'outline_review') {
+        command = 'Let me review the chapter outline and make any necessary adjustments.';
+    }
+    
+    // Open chat drawer and set the command
+    const input = document.getElementById('commandInput');
+    if (input) {
+        input.value = command;
+        toggleChat(true);
+        setTimeout(() => input.focus(), 600);
+    }
 }
 
 function autoRefresh() {
