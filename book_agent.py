@@ -152,7 +152,8 @@ class BookWritingAgent:
         'academic-writer': "Maintain formal academic tone and terminology, integrate literature review properly, describe methods clearly with justification, follow specific citation format consistently (APA, MLA, Chicago, IEEE), and base arguments on empirical evidence or logical reasoning.",
         'childrens-book-creator': "Use age-appropriate vocabulary and sentence structure, include educational themes and moral lessons, use repetition and rhythm for engagement, provide illustration-friendly scenes, ensure safety and appropriateness of content, and create engaging storytelling with clear beginning, middle, and end.",
         'screenplay-writer': "Use standard screenplay formatting (scene headings, action lines, dialogue), focus on visual storytelling over exposition, introduce characters properly with stage directions, maintain pacing for visual medium, and ensure dialogue sounds natural when spoken."
-    
+    }
+
     # System prompts for different phases
     SYSTEM_PROMPTS = {
         "planning": """You are an expert book planner and outline creator. Your role is to create 
@@ -527,8 +528,8 @@ Focus on:
         
         # Return skill-specific prompt additions
         if skill in self.SKILL_PROMPTS:
-            return f"\n\nSkill Guidance ({skill}):
-{self.SKILL_PROMPTS[skill]}"
+            guidance = "\n\nSkill Guidance ({}):\n{}".format(skill, self.SKILL_PROMPTS[skill])
+            return guidance
         elif skill == 'fiction':
             return "\n\nSkill Guidance (fiction-writer):\n" + self.SKILL_PROMPTS['fiction-writer']
         elif skill in ['non_fiction', 'business', 'guide']:
@@ -683,10 +684,12 @@ LOCATIONS: [comma-separated list of locations]"""
             
             html_visualization += '</div>'
             html_visualization += '<div class="story-elements">'
-            if story_arc['characters_introduced']:
-                html_visualization += f'<div class="characters-section"><h4>Characters Introduced: {len(story_arc["characters_introduced"])}</h4><ul>{"</li><li>'.join(story_arc['characters_introduced']) + '</li></ul></div>'
-            if story_arc['locations_mentioned']:
-                html_visualization += f'<div class="locations-section"><h4>Locations Mentioned: {len(story_arc["locations_mentioned"])}</h4><ul>{"</li><li>'.join(story_arc['locations_mentioned']) + '</li></ul></div>'
+            if story_arc.get('characters_introduced'):
+                chars_list = '</li><li>'.join(story_arc['characters_introduced'])
+                html_visualization += '<div class="characters-section"><h4>Characters Introduced: {}</h4><ul><li>{}</li></ul></div>'.format(len(story_arc['characters_introduced']), chars_list)
+            if story_arc.get('locations_mentioned'):
+                locs_list = '</li><li>'.join(story_arc['locations_mentioned'])
+                html_visualization += '<div class="locations-section"><h4>Locations Mentioned: {}</h4><ul><li>{}</li></ul></div>'.format(len(story_arc['locations_mentioned']), locs_list)
             html_visualization += '</div></div>'
             
             return {
