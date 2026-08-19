@@ -1,8 +1,9 @@
 """
 Tools package for BookGPT Agent.
 
-This package provides professional file operation tools for the BookGPT agent.
-The tools are modeled after coding agents like Cursor, Windsurf, Aider, and OpenAI Codex.
+This package provides professional file operation tools and writing-specific tools 
+for the BookGPT agent. The tools are modeled after coding agents like Cursor, Windsurf, 
+Aider, and OpenAI Codex.
 
 File Tools:
 - ReadFileTool: Read file contents with line range support
@@ -13,8 +14,10 @@ File Tools:
 - GrepSearchTool: Search for content within files
 - DeleteFileTool: Delete files
 
-Note: Research and outline functionality has moved to the BookWritingAgent
-and is handled directly by the LLM, similar to writing and editing phases.
+Writing-Specific Tools:
+- RunningSummaryTool: Maintain story context across chapters
+- ChapterEvaluationTool: Analyze chapter quality and identify improvements
+- CharacterConsistencyTool: Track and verify character mentions across chapters
 """
 
 from .file_tools import (
@@ -28,6 +31,12 @@ from .file_tools import (
     DeleteFileTool,
     get_file_tools,
     ALL_FILE_TOOLS
+)
+
+from .writing_tools import (
+    RunningSummaryTool,
+    ChapterEvaluationTool,
+    CharacterConsistencyTool
 )
 
 __all__ = [
@@ -44,4 +53,9 @@ __all__ = [
     'DeleteFileTool',
     'get_file_tools',
     'ALL_FILE_TOOLS',
+    
+    # Writing tools
+    'RunningSummaryTool',
+    'ChapterEvaluationTool',
+    'CharacterConsistencyTool',
 ]

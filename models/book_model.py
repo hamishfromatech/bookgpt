@@ -19,6 +19,7 @@ class BookProject:
     genre: str
     target_length: int
     writing_style: str
+    skill: Optional[str] = None  # Domain-specific skill: fiction-writer, non-fiction-author, academic-writer, childrens-book-creator, screenplay-writer
     status: str = "created"
     outline: Optional[Dict[str, Any]] = None
     research_materials: Optional[Dict[str, Any]] = None
@@ -39,6 +40,7 @@ class BookProject:
             'genre': self.genre,
             'target_length': self.target_length,
             'writing_style': self.writing_style,
+            'skill': self.skill,
             'status': self.status,
             'outline': self.outline,
             'research_materials': self.research_materials,
@@ -66,6 +68,7 @@ class BookProject:
             genre=data['genre'],
             target_length=data['target_length'],
             writing_style=data['writing_style'],
+            skill=data.get('skill'),
             status=data.get('status', 'created'),
             outline=data.get('outline'),
             research_materials=data.get('research_materials'),
