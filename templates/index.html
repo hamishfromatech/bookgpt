@@ -195,6 +195,48 @@
     </div>
 </div>
 
+<!-- Story Arc Visualization Modal -->
+<div id="storyArcModal" class="fixed inset-0 z-[110] hidden overflow-y-auto" role="dialog" aria-modal="true">
+    <div class="flex items-center justify-center min-h-screen p-4">
+        <div class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm transition-opacity"></div>
+        <div class="relative bg-surface-50 dark:bg-surface-900 rounded-[2rem] shadow-2xl w-full max-w-4xl max-h-[85vh] overflow-hidden border border-surface-200 dark:border-white/5 transform transition-all">
+            <div class="flex items-center justify-between px-8 py-6 border-b border-surface-200 dark:border-white/5">
+                <h3 class="font-display text-xl font-medium text-slate-900 dark:text-white">Story Arc Timeline</h3>
+                <button id="closeStoryArcModal" class="p-2 rounded-xl hover:bg-surface-100 dark:hover:bg-white/5 text-slate-400 transition-all">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            <div id="storyArcContent" class="p-8 overflow-y-auto max-h-[calc(85vh-5rem)]">
+                <!-- Story arc visualization loaded here -->
+                <div class="text-center text-slate-500 dark:text-slate-400 py-12">Loading story arc visualization...</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Version Diff View Modal -->
+<div id="versionDiffModal" class="fixed inset-0 z-[110] hidden overflow-y-auto" role="dialog" aria-modal="true">
+    <div class="flex items-center justify-center min-h-screen p-4">
+        <div class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm transition-opacity"></div>
+        <div class="relative bg-surface-50 dark:bg-surface-900 rounded-[2rem] shadow-2xl w-full max-w-4xl max-h-[85vh] overflow-hidden border border-surface-200 dark:border-white/5 transform transition-all">
+            <div class="flex items-center justify-between px-8 py-6 border-b border-surface-200 dark:border-white/5">
+                <h3 id="diffTitle" class="font-display text-xl font-medium text-slate-900 dark:text-white">Version Comparison</h3>
+                <button id="closeDiffModal" class="p-2 rounded-xl hover:bg-surface-100 dark:hover:bg-white/5 text-slate-400 transition-all">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            <div id="diffContent" class="p-8 overflow-y-auto max-h-[calc(85vh-5rem)]">
+                <!-- Version diff visualization loaded here -->
+                <div class="text-center text-slate-500 dark:text-slate-400 py-12">Loading version comparison...</div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Loading Overlay -->
 <div id="loadingOverlay" class="fixed inset-0 z-[200] hidden bg-slate-900/30 backdrop-blur-md flex items-center justify-center">
     <div class="bg-surface-50 dark:bg-surface-900 p-8 rounded-2xl shadow-2xl flex flex-col items-center border border-surface-200 dark:border-white/5">
@@ -222,5 +264,131 @@
         background: rgba(255, 255, 255, 0.1);
         box-shadow: 0 0 0 3px rgba(232, 93, 76, 0.2);
     }
-</style>
+
+    /* Story Arc Visualization Styles */
+    .story-arc-viz {
+        padding: 1rem;
+    }
+    
+    .timeline-container {
+        display: flex;
+        justify-content: space-between;
+        align-items: stretch;
+        gap: 1rem;
+        margin-top: 2rem;
+    }
+    
+    .timeline-phase {
+        flex: 1;
+        border: 1px solid rgba(148, 163, 184, 0.3);
+        border-radius: 0.75rem;
+        padding: 1.5rem;
+        background: rgba(248, 250, 252, 0.5);
+        transition: all 0.3s ease;
+    }
+    
+    .dark .timeline-phase {
+        background: rgba(255, 255, 255, 0.05);
+        border-color: rgba(255, 255, 255, 0.1);
+    }
+    
+    .timeline-phase.active {
+        border-color: #e85d4c;
+        background: rgba(232, 93, 76, 0.1);
+        box-shadow: 0 0 20px -5px rgba(232, 93, 76, 0.3);
+    }
+    
+    .timeline-phase.upcoming {
+        opacity: 0.7;
+    }
+    
+    .phase-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+    }
+    
+    .phase-name {
+        font-weight: 600;
+        color: #0f172a;
+        font-size: 1.125rem;
+    }
+    
+    .dark .phase-name {
+        color: #f8fafc;
+    }
+    
+    .phase-chapters {
+        font-size: 0.75rem;
+        padding: 0.25rem 0.5rem;
+        background: rgba(148, 163, 184, 0.2);
+        border-radius: 0.25rem;
+        color: #475569;
+    }
+    
+    .dark .phase-chapters {
+        background: rgba(255, 255, 255, 0.1);
+        color: #94a3b8;
+    }
+    
+    .phase-description {
+        font-size: 0.875rem;
+        color: #64748b;
+        line-height: 1.5;
+    }
+    
+    .dark .phase-description {
+        color: #94a3b8;
+    }
+
+    /* Version Diff View Styles */
+    .diff-view {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        font-size: 0.875rem;
+        line-height: 1.5;
+    }
+    
+    .unified-diff {
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 0.5rem;
+        padding: 1rem;
+        overflow-x: auto;
+        margin-top: 1rem;
+    }
+    
+    .dark .unified-diff {
+        background: #1e293b;
+        border-color: #334155;
+    }
+    
+    .diff-added {
+        color: #16a34a;
+        background: rgba(22, 163, 74, 0.1);
+        display: block;
+    }
+    
+    .dark .diff-added {
+        background: rgba(22, 163, 74, 0.2);
+    }
+    
+    .diff-removed {
+        color: #dc2626;
+        background: rgba(220, 38, 38, 0.1);
+        display: block;
+    }
+    
+    .dark .diff-removed {
+        background: rgba(220, 38, 38, 0.2);
+    }
+    
+    .diff-context {
+        color: #64748b;
+        display: block;
+    }
+    
+    .dark .diff-context {
+        color: #94a3b8;
+    }</style>
 {% endblock %}

@@ -2367,6 +2367,68 @@ def restore_chapter_version(project_id, chapter_num, version_num):
         return jsonify({'success': False, 'error': str(e)}), 500
 
 # =============================================================================
+# STORY ARC & VERSION DIFF ENDPOINTS
+# =============================================================================
+
+@app.route('/api/projects/<project_id>/story-arc', methods=['GET'])
+@login_required
+def get_story_arc_visualization(project_id):
+    """Get story arc timeline visualization for a project."""
+    try:
+        project = storage.get_project(project_id)
+        if not project:
+            return jsonify({'success': False, 'error': 'Project not found'}), 404
+
+        if project.user_id != current_user.id:
+            return jsonify({'success': False, 'error': 'Access denied'}), 403
+
+        # Generate story arc visualization using the agent
+        result = book_agent.generate_story_arc_visualization(project_id)
+        
+        return jsonify({
+            'success': result['success'],
+            'story_arc': result.get('story_arc'),
+            'html_visualization': result.get('html_visualization'),
+            'chapters_completed': result.get('chapters_completed', 0)
+        })
+
+    except Exception as e:
+        logger.error(f"Error getting story arc visualization: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/projects/<project_id>/chapters/<int:chapter_num>/diff', methods=['GET'])
+@login_required
+def get_chapter_version_diff(project_id, chapter_num):
+    """Get visual diff between two chapter versions."""
+    try:
+        version1 = request.args.get('v1', type=int)
+        version2 = request.args.get('v2', type=int)
+        
+        if not version1 or not version2:
+            return jsonify({'success': False, 'error': 'Both v1 and v2 parameters are required'}), 400
+
+        project = storage.get_project(project_id)
+        if not project:
+            return jsonify({'success': False, 'error': 'Project not found'}), 404
+
+        if project.user_id != current_user.id:
+            return jsonify({'success': False, 'error': 'Access denied'}), 403
+
+        # Generate version diff using the agent
+        result = book_agent.generate_version_diff(project_id, version1, version2)
+        
+        return jsonify({
+            'success': result['success'],
+            'version1': version1,
+            'version2': version2,
+            'diff_html': result.get('diff_html'),
+            'changes_summary': result.get('changes_summary')
+        })
+
+    except Exception as e:
+        logger.error(f"Error getting chapter version diff: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 # MANUAL CHAPTER EDITING ENDPOINTS
 # =============================================================================
 

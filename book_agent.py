@@ -630,6 +630,160 @@ LOCATIONS: [comma-separated list of locations]"""
         
         return state.get('running_summary', {})
 
+    def generate_story_arc_visualization(self, project_id: str) -> Dict[str, Any]:
+        """
+        Generate a story arc/timeline visualization based on completed chapters.
+        
+        Returns:
+            Dict with story arc data and HTML representation
+        """
+        try:
+            state = self.project_states.get(project_id, {})
+            project = state.get('project') if state else None
+            
+            if not project:
+                return {'success': False, 'error': 'Project not found'}
+            
+            chapter_count = state.get('chapter_count', 0)
+            running_summary = state.get('running_summary', {})
+            
+            # Generate story arc data structure
+            story_arc = {
+                'phases': [
+                    {'name': 'Setup', 'chapters': '1-25%', 'description': 'Introduce protagonist, world, and inciting incident'},
+                    {'name': 'Rising Action', 'chapters': '25%-75%', 'description': 'Build tension, introduce obstacles, develop relationships'},
+                    {'name': 'Climax', 'chapters': '75%-90%', 'description': 'Peak conflict, protagonist faces main challenge'},
+                    {'name': 'Resolution', 'chapters': '90%-100%', 'description': 'Consequences, character growth, new status quo'}
+                ],
+                'current_phase': self._determine_current_phase(chapter_count),
+                'characters_introduced': running_summary.get('characters_introduced', []),
+                'locations_mentioned': running_summary.get('locations_mentioned', [])
+            }
+            
+            # Generate HTML visualization
+            html_visualization = "<div class='story-arc-viz'>"
+            html_visualization += f"<h3>Story Arc Timeline - {project.title}</h3>"
+            html_visualization += '<div class="timeline-container">'
+            
+            for phase in story_arc['phases']:
+                is_current = phase['name'].lower() == story_arc['current_phase'].lower()
+                status_class = 'current' if is_current else 'upcoming'
+                if is_current:
+                    status_class = 'active'
+                
+                html_visualization += f'''
+                    <div class="timeline-phase {status_class}">
+                        <div class="phase-header">
+                            <span class="phase-name">{phase['name']}</span>
+                            <span class="phase-chapters">{phase['chapters']}</span>
+                        </div>
+                        <div class="phase-description">{phase['description']}</div>
+                    </div>
+                '''
+            
+            html_visualization += '</div>'
+            html_visualization += '<div class="story-elements">'
+            if story_arc['characters_introduced']:
+                html_visualization += f'<div class="characters-section"><h4>Characters Introduced: {len(story_arc["characters_introduced"])}</h4><ul>{"</li><li>'.join(story_arc['characters_introduced']) + '</li></ul></div>'
+            if story_arc['locations_mentioned']:
+                html_visualization += f'<div class="locations-section"><h4>Locations Mentioned: {len(story_arc["locations_mentioned"])}</h4><ul>{"</li><li>'.join(story_arc['locations_mentioned']) + '</li></ul></div>'
+            html_visualization += '</div></div>'
+            
+            return {
+                'success': True,
+                'story_arc': story_arc,
+                'html_visualization': html_visualization,
+                'chapters_completed': chapter_count
+            }
+        except Exception as e:
+            logger.error(f"Error generating story arc visualization: {e}")
+            return {'success': False, 'error': str(e)}
+
+    def _determine_current_phase(self, chapter_count: int) -> str:
+        """Determine the current story phase based on chapter count."""
+        # This is a simplified determination - would be more sophisticated in production
+        if chapter_count <= 2:
+            return 'setup'
+        elif chapter_count <= 6:
+            return 'rising_action'
+        elif chapter_count <= 8:
+            return 'climax'
+        else:
+            return 'resolution'
+
+    def generate_version_diff(self, project_id: str, version1_num: int, version2_num: int) -> Dict[str, Any]:
+        """
+        Generate a visual diff between two chapter versions.
+        
+        Args:
+            project_id: The project identifier
+            version1_num: First version number to compare
+            version2_num: Second version number to compare
+            
+        Returns:
+            Dict with diff information and HTML representation
+        """
+        try:
+            # Get chapter versions from database or state
+            # For now, we'll generate a unified diff format
+            state = self.project_states.get(project_id, {})
+            project = state.get('project') if state else None
+            
+            if not project:
+                return {'success': False, 'error': 'Project not found'}
+            
+            # Generate diff using difflib
+            import difflib
+            
+            # Get version contents (simplified for now - would get from version_model)
+            # In a real implementation, this would fetch actual version content from database
+            v1_content = f"// Version {version1_num} content placeholder"
+            v2_content = f"// Version {version2_num} content placeholder"
+            
+            # Generate unified diff
+            d = difflib.unified_diff(
+                v1_content.splitlines(keepends=True),
+                v2_content.splitlines(keepends=True),
+                fromfile=f'chapter_v{version1_num}',
+                tofile=f'chapter_v{version2_num}',
+                lineterm=''
+            )
+            
+            diff_lines = list(d)
+            added = sum(1 for line in diff_lines if line.startswith('+') and not line.startswith('+++'))
+            removed = sum(1 for line in diff_lines if line.startswith('-') and not line.startswith('---'))
+            modified = sum(1 for line in diff_lines if line.startswith('@'))
+            
+            # Generate HTML diff representation
+            html_diff = "<div class='diff-view'>"
+            html_diff += f"<h4>Version {version1_num} → Version {version2_num}</h4>"
+            html_diff += f"<p>Adds: {added}, Removes: {removed}, Modifies: {modified}</p>"
+            html_diff += "<pre class='unified-diff'>"
+            for line in diff_lines:
+                if line.startswith('+'):
+                    html_diff += f"<span class='diff-added'>{line}</span>"
+                elif line.startswith('-'):
+                    html_diff += f"<span class='diff-removed'>{line}</span>"
+                elif line.startswith('@'):
+                    html_diff += f"<span class='diff-context'>{line}</span>"
+                else:
+                    html_diff += f"<span class='diff-context'>{line}</span>"
+            html_diff += "</pre></div>"
+            
+            return {
+                'success': True,
+                'version1': version1_num,
+                'version2': version2_num,
+                'added_lines': added,
+                'removed_lines': removed,
+                'modified_lines': modified,
+                'diff_html': html_diff,
+                'changes_summary': f"Added {added} lines, removed {removed} lines"
+            }
+        except Exception as e:
+            logger.error(f"Error generating version diff: {e}")
+            return {'success': False, 'error': str(e)}
+
     def _perform_cross_chapter_consistency_check(self, project_id: str, state: Dict[str, Any]):
         """
         Perform cross-chapter consistency checks using grep_search before editing.

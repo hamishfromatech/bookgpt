@@ -7,6 +7,27 @@ from typing import Dict, Any, List, Optional
 from datetime import datetime
 import json
 import uuid
+import difflib
+
+@dataclass
+class ChapterVersionDiff:
+    """Model representing a diff between two chapter versions."""
+    
+    version1_id: str
+    version2_id: str
+    chapter_id: str
+    project_id: str
+    changes_summary: str = ""
+    added_lines: int = 0
+    removed_lines: int = 0
+    modified_lines: int = 0
+    diff_html: Optional[str] = None
+    
+    def get_diff_summary(self) -> str:
+        """Get a summary of the changes between versions."""
+        if self.added_lines > 0 or self.removed_lines > 0 or self.modified_lines > 0:
+            return f"Added {self.added_lines} lines, removed {self.removed_lines} lines, modified {self.modified_lines} lines"
+        return "No significant changes detected"
 
 
 @dataclass

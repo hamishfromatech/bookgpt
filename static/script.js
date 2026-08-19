@@ -117,6 +117,22 @@ function setupEventListeners() {
             if (e.target === projectDetailsModal) hideProjectDetailsModal();
         });
     }
+
+    // Story arc modal close when clicking outside
+    const storyArcModal = document.getElementById('storyArcModal');
+    if (storyArcModal) {
+        storyArcModal.addEventListener('click', function(e) {
+            if (e.target === storyArcModal) closeStoryArcModal();
+        });
+    }
+
+    // Version diff modal close when clicking outside
+    const versionDiffModal = document.getElementById('versionDiffModal');
+    if (versionDiffModal) {
+        versionDiffModal.addEventListener('click', function(e) {
+            if (e.target === versionDiffModal) closeVersionDiffModal();
+        });
+    }
     
     document.addEventListener('keydown', function(e) {
         if (e.key === 'Escape') {
@@ -383,7 +399,8 @@ function renderProjectDetails() {
 
         <div class="mt-10 flex flex-col sm:flex-row gap-3">
             <button onclick="deleteProject('${p.id}')" class="px-6 py-3 border border-red-200 dark:border-red-900/30 text-red-600 dark:text-red-400 rounded-xl font-medium text-sm hover:bg-red-50 dark:hover:bg-red-900/20 transition-all">Delete Project</button>
-            <button onclick="downloadBook('${p.id}')" class="px-6 py-3 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-xl font-medium text-sm hover:opacity-90 transition-all ml-auto">Download TXT</button>
+            <button onclick="openStoryArcModal('${p.id}')" class="px-6 py-3 bg-editorial-teal/10 text-editorial-teal border border-editorial-teal/20 rounded-xl font-medium text-sm hover:bg-editorial-teal/20 transition-all ml-auto sm:ml-0">Story Arc Timeline</button>
+            <button onclick="downloadBook('${p.id}')" class="px-6 py-3 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-xl font-medium text-sm hover:opacity-90 transition-all ml-auto sm:ml-3">Download TXT</button>
         </div>
     `;
     loadChapters(p.id);
@@ -1526,6 +1543,69 @@ async function checkLLMStatus() {
             document.getElementById('llmStatus').classList.remove('hidden');
         }
     } catch (e) {}
+}
+
+// Story Arc Visualization Functions
+function openStoryArcModal(projectId) {
+    const modal = document.getElementById('storyArcModal');
+    const content = document.getElementById('storyArcContent');
+    
+    modal.classList.remove('hidden');
+    
+    // Fetch story arc data
+    fetch(`/api/projects/${projectId}/story-arc`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                content.innerHTML = data.html_visualization || '<div class="text-center text-slate-500 dark:text-slate-400 py-12">No story arc data available yet.</div>';
+            } else {
+                content.innerHTML = `<div class="text-center text-red-500 py-12">Error loading story arc: ${data.error || 'Unknown error'}</div>`;
+            }
+        })
+        .catch(error => {
+            console.error('Error loading story arc:', error);
+            content.innerHTML = '<div class="text-center text-red-500 py-12">Error loading story arc visualization.</div>';
+        });
+}
+
+function closeStoryArcModal() {
+    const modal = document.getElementById('storyArcModal');
+    modal.classList.add('hidden');
+}
+
+// Version Diff View Functions
+function openVersionDiffModal(projectId, chapterNum, v1, v2) {
+    const modal = document.getElementById('versionDiffModal');
+    const title = document.getElementById('diffTitle');
+    const content = document.getElementById('diffContent');
+    
+    title.textContent = `Chapter ${chapterNum}: Version ${v1} → Version ${v2}`;
+    modal.classList.remove('hidden');
+    
+    // Fetch version diff data
+    fetch(`/api/projects/${projectId}/chapters/${chapterNum}/diff?v1=${v1}&v2=${v2}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                content.innerHTML = `
+                    <div class="mb-4">
+                        <h4 class="text-sm font-bold text-slate-900 dark:text-white mb-2">Version Comparison Summary</h4>
+                        <p class="text-sm text-slate-600 dark:text-slate-300">${data.changes_summary || 'No changes summary available'}</p>
+                    </div>
+                ` + (data.diff_html || '<div class="text-center text-slate-500 dark:text-slate-400 py-12">No diff data available.</div>');
+            } else {
+                content.innerHTML = `<div class="text-center text-red-500 py-12">Error loading version diff: ${data.error || 'Unknown error'}</div>`;
+            }
+        })
+        .catch(error => {
+            console.error('Error loading version diff:', error);
+            content.innerHTML = '<div class="text-center text-red-500 py-12">Error loading version comparison.</div>';
+        });
+}
+
+function closeVersionDiffModal() {
+    const modal = document.getElementById('versionDiffModal');
+    modal.classList.add('hidden');
 }
 
 // Update agent suggestions based on project state
