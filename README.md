@@ -1,11 +1,12 @@
-# BookGPT: AI-Powered Book Writing with Agentic Loops
+# BookGPT: AI-Powered Book Writing with Agentic Loops & Specialized Skills
 
-An autonomous AI agent that writes complete books using OpenAI (or OpenAI-compatible APIs) with sophisticated tool calling patterns. Modeled after professional coding agents like Cursor, Windsurf, Aider, and OpenAI Codex.
+An autonomous AI agent that writes complete books using OpenAI (or OpenAI-compatible APIs) with sophisticated tool calling patterns and domain-specific writing skills. Modeled after professional coding agents like Cursor, Windsurf, Aider, and OpenAI Codex.
 
 ## Quick Links
 
 - **[Installation Guide](docs/INSTALLATION.md)** - Step-by-step setup for beginners
 - [Expert Mode Guide](docs/expert-mode.md) - Advanced configuration
+- [Best Practices & Guide](docs/best-practices.md) - Tips, tricks, and agentic experience guide
 - [Stripe Setup](docs/STRIPE_SETUP.md) - Billing integration
 - [Walkthrough](docs/walkthrough.md) - Full usage guide
 
@@ -13,23 +14,31 @@ An autonomous AI agent that writes complete books using OpenAI (or OpenAI-compat
 
 ### Core Features
 - **🤖 Autonomous Writing**: Complete book generation from title to final draft
-- **🛠️ Professional Tools**: File operations modeled after coding agents
+- **🛠️ Professional Tools**: File operations modeled after coding agents (read, write, edit, search)
 - **🔄 Agentic Loop**: Planning → Research → Writing → Editing → Refining phases
 - **🌐 Multiple LLM Support**: OpenAI, Ollama, LM Studio, custom endpoints
 - **📚 Structured Output**: Organized chapters with outlines and research notes
 
+### Specialized Skills System
+- **🎭 Domain-Specific Workflows**: Select specialized writing skills during project creation:
+  - `fiction-writer`: Novel and fiction writing with character arcs, plot beats, dialogue focus
+  - `non-fiction-author`: Research citation, factual accuracy, logical structure, reader education
+  - `academic-writer`: Formal tone, peer-review style, reference formatting, methodological rigor
+  - `childrens-book-creator`: Simple language, educational themes, age-appropriate content, illustration prompts
+  - `screenplay-writer`: Scene headings, action lines, dialogue formatting, visual storytelling
+
 ### Advanced Features
 - **👤 User Authentication**: Secure login system with password management
 - **💳 Stripe Billing**: Credit-based system with subscription support
-- **📊 Real-time Monitoring**: Live progress dashboard with activity feeds
-- **📝 Chapter Versioning**: Track and restore previous chapter versions
-- **⏸️ Pause & Resume**: Stop and resume writing sessions anytime
-- **💬 Agent Chat**: Interactive chat to guide the writing process
+- **📊 Real-time Monitoring**: Live progress dashboard with activity feeds and agent logging
+- **📝 Chapter Versioning**: Track and restore previous chapter versions with diff views
+- **⏸️ Pause & Resume**: Stop and resume writing sessions anytime (state preserved)
+- **💬 Agent Chat**: Interactive chat with proactive suggestions based on project state
 - **📥 Multiple Export Formats**: PDF, EPUB, DOCX, and plain text
-- **🎨 Character Management**: Create and track characters
-- **📖 Plot Tracking**: Manage plot points and story arcs
-- **🔒 Rate Limiting**: API protection with configurable limits
-- **📈 Project Analytics**: Track writing progress and statistics
+- **🎨 Character Management**: Create and track characters with consistency checks
+- **📖 Plot Tracking**: Manage plot points and story arcs with cross-chapter validation
+- **🔒 Rate Limiting & Adaptive Recovery**: API protection with fallback strategies for failed generations
+- **📈 Project Analytics**: Track writing progress, token usage, and agent activity logs
 
 ## Installation
 
@@ -82,10 +91,19 @@ python app.py
 2. Login with default credentials:
    - **Username:** `user`
    - **Password:** `password`
-3. Create a new book project
+3. Create a new book project (select genre, target words, writing style, and specialized skill/workflow)
 4. Start the writing process
-5. Monitor progress in real-time
-6. Export your finished book
+5. Monitor progress in real-time via the monitoring dashboard
+6. Use Agent Chat with proactive suggestions to guide the writing process
+7. Export your finished book in PDF, EPUB, DOCX, or plain text format
+
+### Help & Documentation
+
+Access the **Help & Docs** page from the sidebar navigation for:
+- Comprehensive best practices guide
+- Phase-by-phase writing tips
+- Agent chat and suggestion usage
+- Troubleshooting common issues
 
 ### The Writing Process
 
@@ -202,14 +220,19 @@ DOMAIN=http://localhost:6748
 ```
 bookgpt/
 ├── app.py                      # Flask application
-├── book_agent.py               # Main agentic system
+├── book_agent.py               # Main agentic system with skills integration
 ├── models/
-│   ├── book_model.py           # Book project data model
+│   ├── book_model.py           # Book project data model (includes skill field)
 │   └── version_model.py        # Chapter versioning
 ├── tools/
-│   ├── file_tools.py           # File operations
-│   ├── chapter_tools.py        # Chapter management
-│   └── research_tools.py       # Research and outlines
+│   ├── file_tools.py           # File operations (read, write, edit, search)
+│   ├── writing_tools.py        # Writing-specific tools (evaluation, consistency)
+├── .agents/skills/             # Domain-specific writing skills system
+│   ├── fiction-writer/SKILL.md
+│   ├── non-fiction-author/SKILL.md
+│   ├── academic-writer/SKILL.md
+│   ├── childrens-book-creator/SKILL.md
+│   └── screenplay-writer/SKILL.md
 ├── utils/
 │   ├── llm_client.py           # LLM client
 │   ├── task_manager.py         # Background tasks
@@ -217,18 +240,27 @@ bookgpt/
 │   ├── storage.py              # File storage
 │   ├── export.py               # Export functions
 │   └── validation.py           # Input validation
-├── templates/                  # HTML templates
+├── templates/                  # HTML templates (includes docs.html)
 ├── static/                     # CSS, JS, images
-└── docs/                       # Documentation
+└── docs/                       # Documentation (best-practices.md included)
 ```
 
 ## Development
+
+### Adding New Skills
+
+Skills are located in `.agents/skills/` directory. Each skill is a folder with a `SKILL.md` file containing:
+- Frontmatter with `name` and `description`
+- Usage instructions and best practices
+- Tool integration guidance
+
+Follow the [Agent Skills Specification](https://agentskills.io/specification) for progressive disclosure pattern.
 
 ### Adding New Tools
 
 1. Create tool class inheriting from `BaseTool`
 2. Implement: `name()`, `description()`, `parameters_schema()`, `execute()`
-3. Add to `ALL_TOOLS` in `utils/agent_factory.py`
+3. Add to writing tools in `tools/writing_tools.py` or file tools in `tools/file_tools.py`
 
 ### Running Tests
 
@@ -246,12 +278,15 @@ See the [Installation Guide](docs/INSTALLATION.md) for common issues and solutio
 
 ## Roadmap
 
-- [ ] Multiple language support
-- [ ] Character consistency tracking
-- [ ] Plot coherence validation
-- [ ] Collaborative editing
-- [ ] Advanced customization options
-- [ ] Mobile-responsive interface
+- ✅ Domain-specific writing skills system (fiction, non-fiction, academic, children's, screenplay)
+- ✅ Agent activity logging and running story summaries
+- ✅ Cross-chapter consistency checks during editing
+- ✅ Adaptive retry strategies for chapter generation
+- ✅ Proactive suggestions in agent chat
+- [ ] Multiple language support & translation
+- [ ] Collaborative editing & sharing
+- [ ] Voice/audio features (text-to-speech, voice input)
+- [ ] Advanced analytics & readability scoring
 
 ## Contributing
 
