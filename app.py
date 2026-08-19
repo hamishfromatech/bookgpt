@@ -2396,9 +2396,134 @@ def get_story_arc_visualization(project_id):
         logger.error(f"Error getting story arc visualization: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
-@app.route('/api/projects/<project_id>/chapters/<int:chapter_num>/diff', methods=['GET'])
+# =============================================================================
+# ANALYTICS DASHBOARD ENDPOINTS
+# =============================================================================
+
+@app.route('/api/projects/<project_id>/analytics/pacing', methods=['GET'])
 @login_required
-def get_chapter_version_diff(project_id, chapter_num):
+def get_pacing_analysis(project_id):
+    """Get pacing analysis for a project."""
+    try:
+        project = storage.get_project(project_id)
+        if not project:
+            return jsonify({'success': False, 'error': 'Project not found'}), 404
+
+        if project.user_id != current_user.id:
+            return jsonify({'success': False, 'error': 'Access denied'}), 403
+
+        result = book_agent.generate_pacing_analysis(project_id)
+        
+        return jsonify({
+            'success': result['success'],
+            'pacing_data': result
+        })
+
+    except Exception as e:
+        logger.error(f"Error getting pacing analysis: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/projects/<project_id>/analytics/characters', methods=['GET'])
+@login_required
+def get_character_frequency(project_id):
+    """Get character frequency tracking for a project."""
+    try:
+        project = storage.get_project(project_id)
+        if not project:
+            return jsonify({'success': False, 'error': 'Project not found'}), 404
+
+        if project.user_id != current_user.id:
+            return jsonify({'success': False, 'error': 'Access denied'}), 403
+
+        result = book_agent.generate_character_frequency(project_id)
+        
+        return jsonify({
+            'success': result['success'],
+            'character_data': result
+        })
+
+    except Exception as e:
+        logger.error(f"Error getting character frequency: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/projects/<project_id>/analytics/readability', methods=['GET'])
+@login_required
+def get_readability_score(project_id):
+    """Get readability score for a project."""
+    try:
+        project = storage.get_project(project_id)
+        if not project:
+            return jsonify({'success': False, 'error': 'Project not found'}), 404
+
+        if project.user_id != current_user.id:
+            return jsonify({'success': False, 'error': 'Access denied'}), 403
+
+        result = book_agent.generate_readability_score(project_id)
+        
+        return jsonify({
+            'success': result['success'],
+            'readability_data': result
+        })
+
+    except Exception as e:
+        logger.error(f"Error getting readability score: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+# =============================================================================
+# MULTILINGUAL SUPPORT ENDPOINTS
+# =============================================================================
+
+@app.route('/api/projects/<project_id>/translate', methods=['POST'])
+@login_required
+def translate_project(project_id):
+    """Translate project content to a target language."""
+    try:
+        project = storage.get_project(project_id)
+        if not project:
+            return jsonify({'success': False, 'error': 'Project not found'}), 404
+
+        if project.user_id != current_user.id:
+            return jsonify({'success': False, 'error': 'Access denied'}), 403
+
+        data = request.get_json()
+        target_language = data.get('target_language', 'en')
+        
+        # In a full implementation, this would use translation API or LLM translation
+        # For now, return placeholder response
+        return jsonify({
+            'success': True,
+            'message': f'Translation to {target_language} initiated. (Translation pipeline pending)',
+            'target_language': target_language
+        })
+
+    except Exception as e:
+        logger.error(f"Error translating project: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/languages', methods=['GET'])
+@login_required
+def get_supported_languages():
+    """Get list of supported languages for translation."""
+    return jsonify({
+        'success': True,
+        'languages': [
+            {'code': 'en', 'name': 'English'},
+            {'code': 'es', 'name': 'Spanish'},
+            {'code': 'fr', 'name': 'French'},
+            {'code': 'de', 'name': 'German'},
+            {'code': 'it', 'name': 'Italian'},
+            {'code': 'pt', 'name': 'Portuguese'},
+            {'code': 'ru', 'name': 'Russian'},
+            {'code': 'ja', 'name': 'Japanese'},
+            {'code': 'zh', 'name': 'Chinese (Simplified)'}
+        ]
+    })
+
+# =============================================================================
+# STORY ARC & VERSION DIFF ENDPOINTS
+# =============================================================================
+
+@app.route('/api/projects/<project_id>/story-arc', methods=['GET'])
     """Get visual diff between two chapter versions."""
     try:
         version1 = request.args.get('v1', type=int)
