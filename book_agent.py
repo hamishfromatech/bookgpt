@@ -37,6 +37,19 @@ from models.book_model import BookProject
 # Import BaseTool from tools package
 from tools.file_tools import BaseTool
 
+# Import writing quality enhancements
+from writing_quality import (
+    DEFAULT_DRAFT_SEQUENCE,
+    get_draft_pass_config,
+    build_draft_prompt,
+    build_critique_prompt,
+    build_rewrite_prompt,
+    build_style_prompt_addition,
+    build_structure_prompt_addition,
+    get_beat_for_chapter,
+    get_structure_template
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -520,26 +533,43 @@ Focus on:
 
     def _get_skill_guidance(self, project: Any) -> str:
         """
-        Get skill-specific guidance based on the project's selected skill.
+        Get skill-specific guidance based on the project's selected skill, style, and structure.
         
         Returns a string of guidance to include in system prompts.
         """
         skill = getattr(project, 'skill', None) or self.AVAILABLE_SKILLS.get('fiction-writer')
+        guidance_parts = []
         
-        # Return skill-specific prompt additions
+        # Skill guidance
         if skill in self.SKILL_PROMPTS:
-            guidance = "\n\nSkill Guidance ({}):\n{}".format(skill, self.SKILL_PROMPTS[skill])
-            return guidance
+            guidance_parts.append("\n\nSkill Guidance ({}):\n{}".format(skill, self.SKILL_PROMPTS[skill]))
         elif skill == 'fiction':
-            return "\n\nSkill Guidance (fiction-writer):\n" + self.SKILL_PROMPTS['fiction-writer']
+            guidance_parts.append("\n\nSkill Guidance (fiction-writer):\n" + self.SKILL_PROMPTS['fiction-writer'])
         elif skill in ['non_fiction', 'business', 'guide']:
-            return "\n\nSkill Guidance (non-fiction-author):\n" + self.SKILL_PROMPTS['non-fiction-author']
+            guidance_parts.append("\n\nSkill Guidance (non-fiction-author):\n" + self.SKILL_PROMPTS['non-fiction-author'])
         elif skill in ['academic', 'research', 'textbook']:
-            return "\n\nSkill Guidance (academic-writer):\n" + self.SKILL_PROMPTS['academic-writer']
+            guidance_parts.append("\n\nSkill Guidance (academic-writer):\n" + self.SKILL_PROMPTS['academic-writer'])
         elif skill in ['children', 'kids', 'picture-book']:
-            return "\n\nSkill Guidance (childrens-book-creator):\n" + self.SKILL_PROMPTS['childrens-book-creator']
+            guidance_parts.append("\n\nSkill Guidance (childrens-book-creator):\n" + self.SKILL_PROMPTS['childrens-book-creator'])
         elif skill in ['screenplay', 'script', 'film', 'tv']:
-            return "\n\nSkill Guidance (screenplay-writer):\n" + self.SKILL_PROMPTS['screenplay-writer']
+            guidance_parts.append("\n\nSkill Guidance (screenplay-writer):\n" + self.SKILL_PROMPTS['screenplay-writer'])
+        
+        # Style transfer guidance
+        style_voice = getattr(project, 'style_voice', None)
+        if style_voice:
+            try:
+                guidance_parts.append(build_style_prompt_addition(style_voice))
+            except Exception:
+                pass
+        
+        # Structure template guidance
+        structure_template = getattr(project, 'structure_template', None)
+        if structure_template and structure_template != 'none':
+            total_chapters = max(1, project.target_length // 5000)
+            guidance_parts.append(build_structure_prompt_addition(structure_template, total_chapters))
+        
+        if guidance_parts:
+            return "".join(guidance_parts)
         
         # Default guidance
         return "\n\nGeneral Writing Guidance:\nFocus on engaging content, proper structure, and consistent quality throughout."
@@ -1284,6 +1314,77 @@ This research will inform the writing process."""}
             logger.warning(f"Could not read previous chapter {chapter_number} for {project_id}: {e}")
             return None
 
+    def _run_multi_draft_process(self, project_id: str, chapter_content: str, chapter_info: Dict[str, Any], project: Any) -> str:
+        """Run the multi-draft writing process on a chapter."""
+        draft_passes = getattr(project, 'draft_passes', 1) or 1
+        if draft_passes <= 1:
+            return chapter_content
+        
+        current_content = chapter_content
+        passes_to_run = DEFAULT_DRAFT_SEQUENCE[:draft_passes]
+        
+        # Skip 'rough' since we already have the initial draft
+        for pass_name in passes_to_run[1:]:
+            try:
+                config = get_draft_pass_config(pass_name)
+                self._log_activity(project_id, 'writing', f'draft_pass_{pass_name}', {
+                    'chapter': chapter_info.get('chapter_number'),
+                    'pass': config['name']
+                })
+                prompt = build_draft_prompt(pass_name, current_content, chapter_info)
+                if not prompt:
+                    continue
+                messages = [
+                    {"role": "system", "content": self.SYSTEM_PROMPTS["writing"] + self._get_skill_guidance(project)},
+                    {"role": "user", "content": prompt}
+                ]
+                response = self.llm.chat(messages, max_tokens=config['max_tokens'], temperature=config['temperature'])
+                if response and hasattr(response, 'content') and response.content:
+                    current_content = response.content
+                    logger.info(f"Chapter {chapter_info.get('chapter_number')} {config['name']} pass complete: {len(current_content)} chars")
+            except Exception as e:
+                logger.warning(f"Draft pass '{pass_name}' failed for chapter {chapter_info.get('chapter_number')}: {e}")
+        return current_content
+
+    def _run_self_critique_loop(self, project_id: str, chapter_content: str, chapter_info: Dict[str, Any], project: Any) -> str:
+        """Run the self-critique loop on a chapter."""
+        try:
+            self._log_activity(project_id, 'writing', 'self_critique_start', {
+                'chapter': chapter_info.get('chapter_number')
+            })
+            critique_prompt = build_critique_prompt(chapter_content, chapter_info)
+            messages = [
+                {"role": "system", "content": "You are a master editor providing rigorous, specific critique. Be honest and constructive."},
+                {"role": "user", "content": critique_prompt}
+            ]
+            critique_response = self.llm.chat(messages, max_tokens=2000, temperature=0.4)
+            if not critique_response or not hasattr(critique_response, 'content') or not critique_response.content:
+                logger.warning(f"Self-critique produced no response for chapter {chapter_info.get('chapter_number')}")
+                return chapter_content
+            critique = critique_response.content
+            self._log_activity(project_id, 'writing', 'self_critique_generated', {
+                'chapter': chapter_info.get('chapter_number'),
+                'critique_length': len(critique)
+            })
+            rewrite_prompt = build_rewrite_prompt(chapter_content, critique, chapter_info)
+            messages = [
+                {"role": "system", "content": self.SYSTEM_PROMPTS["writing"] + self._get_skill_guidance(project)},
+                {"role": "user", "content": rewrite_prompt}
+            ]
+            rewrite_response = self.llm.chat(messages, max_tokens=self.chapter_max_tokens, temperature=0.65)
+            if rewrite_response and hasattr(rewrite_response, 'content') and rewrite_response.content:
+                improved_content = rewrite_response.content
+                self._log_activity(project_id, 'writing', 'self_critique_complete', {
+                    'chapter': chapter_info.get('chapter_number'),
+                    'original_length': len(chapter_content),
+                    'improved_length': len(improved_content)
+                })
+                return improved_content
+            return chapter_content
+        except Exception as e:
+            logger.warning(f"Self-critique loop failed for chapter {chapter_info.get('chapter_number')}: {e}")
+            return chapter_content
+
     def _write_chapter_with_llm(self, project_id: str, update_summary: bool = True) -> Dict[str, Any]:
         """
         Write a chapter using the LLM with adaptive retry strategies and partial recovery.
@@ -1316,6 +1417,13 @@ This research will inform the writing process."""}
                 if chapter_number <= len(chapters):
                     chapter_info = chapters[chapter_number - 1]
                     chapter_guidance = f"\nChapter {chapter_number} should cover: {chapter_info.get('summary', 'Continue the story')}"
+
+                # Add structural beat guidance if a structure template is selected
+                structure_template = getattr(project, 'structure_template', None)
+                if structure_template and structure_template != 'none':
+                    beat = get_beat_for_chapter(structure_template, chapter_number, total_expected_chapters)
+                    if beat:
+                        chapter_guidance += f"\n\nStructural Beat: {beat['name']} ({int(beat['position']*100)}% mark)\n{beat['description']}\nThis chapter should fulfill this beat in the story structure."
 
                 # Build context from the actual previous chapter so the LLM keeps
                 # continuity in tone, characters, and plot across chapter boundaries.
@@ -1371,6 +1479,21 @@ Begin the chapter now:"""}
                         logger.warning(f"Chapter {chapter_number} content seems truncated: {len(response.content)} chars")
                         adaptive_attempts += 1
                         continue
+                    
+                    # Multi-draft process: apply additional passes if configured
+                    chapter_info = {
+                        'chapter_number': chapter_number,
+                        'title': f'Chapter {chapter_number}',
+                        'genre': project.genre
+                    }
+                    chapter_content = self._run_multi_draft_process(project_id, chapter_content, chapter_info, project)
+                    
+                    # Self-critique loop: read, critique, and rewrite if enabled
+                    if getattr(project, 'self_critique', False):
+                        chapter_content = self._run_self_critique_loop(project_id, chapter_content, chapter_info, project)
+                    
+                    # Recalculate word count after passes
+                    word_count = len(chapter_content.split())
                     
                     # Save chapter using write_file tool
                     if 'write_file' in self.tools:

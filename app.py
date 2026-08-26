@@ -609,7 +609,11 @@ def create_project():
             genre=data['genre'],
             target_length=data['target_length'],
             writing_style=data['writing_style'],
-            skill=data.get('skill')  # Optional: domain-specific skill (fiction-writer, non-fiction-author, etc.)
+            skill=data.get('skill'),  # Optional: domain-specific skill
+            structure_template=data.get('structure_template'),  # Optional: save_the_cat, heros_journey, etc.
+            style_voice=data.get('style_voice'),  # Optional: hemingway, literary, thriller, etc.
+            draft_passes=data.get('draft_passes', 1),  # Number of draft passes (1-4)
+            self_critique=data.get('self_critique', False)  # Enable self-critique loop
         )
         
         # Store description and characters in metadata

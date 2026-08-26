@@ -294,6 +294,14 @@ async function handleCreateProject(e) {
     e.preventDefault();
     const formData = new FormData(createProjectForm);
     const projectData = Object.fromEntries(formData.entries());
+
+    // Handle checkbox: FormData doesn't include unchecked checkboxes
+    const selfCritiqueEl = createProjectForm.querySelector('#self_critique');
+    if (selfCritiqueEl) projectData.self_critique = selfCritiqueEl.checked;
+    // Ensure draft_passes is a number
+    if (projectData.draft_passes) projectData.draft_passes = parseInt(projectData.draft_passes);
+    // Remove empty style_voice so it doesn't override defaults
+    if (!projectData.style_voice) delete projectData.style_voice;
     
     try {
         showLoading(true, 'Creating Manuscript...');

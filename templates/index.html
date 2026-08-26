@@ -156,7 +156,57 @@
                             <option value="screenplay-writer">Screenplay Writer (Scripts, Plays)</option>
                         </select>
                     </div>
-                    
+
+                    <!-- Advanced Quality Options (collapsible) -->
+                    <details class="mt-2">
+                        <summary class="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider ml-1 cursor-pointer hover:text-accent transition-colors">Advanced Quality Options</summary>
+                        <div class="space-y-5 mt-4">
+                            <div class="space-y-1.5">
+                                <label class="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider ml-1">Structure Template</label>
+                                <select id="structure_template" name="structure_template" class="input-editorial w-full px-5 py-4 rounded-xl text-slate-900 dark:text-white font-medium outline-none">
+                                    <option value="none">No Template (Free-form)</option>
+                                    <option value="three_act">Three-Act Structure</option>
+                                    <option value="save_the_cat">Save the Cat (15 beats)</option>
+                                    <option value="heros_journey">Hero's Journey (12 stages)</option>
+                                    <option value="seven_point">Seven-Point Structure</option>
+                                    <option value="freytag">Freytag's Pyramid</option>
+                                </select>
+                            </div>
+
+                            <div class="space-y-1.5">
+                                <label class="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider ml-1">Writing Voice / Style Transfer</label>
+                                <select id="style_voice" name="style_voice" class="input-editorial w-full px-5 py-4 rounded-xl text-slate-900 dark:text-white font-medium outline-none">
+                                    <option value="">Default (No style transfer)</option>
+                                    <option value="literary">Literary Fiction</option>
+                                    <option value="hemingway">Hemingway / Minimalist</option>
+                                    <option value="thriller">Thriller / Page-Turner</option>
+                                    <option value="romance">Romance</option>
+                                    <option value="scifi">Science Fiction</option>
+                                    <option value="fantasy">Fantasy Epic</option>
+                                    <option value="technical">Technical / Educational</option>
+                                    <option value="poetic">Poetic / Lyrical</option>
+                                </select>
+                            </div>
+
+                            <div class="space-y-1.5">
+                                <label class="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider ml-1">Draft Passes (Writing Quality)</label>
+                                <select id="draft_passes" name="draft_passes" class="input-editorial w-full px-5 py-4 rounded-xl text-slate-900 dark:text-white font-medium outline-none">
+                                    <option value="1">1 pass (Fast - rough draft only)</option>
+                                    <option value="2">2 passes (Rough + Structural edit)</option>
+                                    <option value="3">3 passes (Rough + Structural + Line edit)</option>
+                                    <option value="4">4 passes (Full polish - recommended)</option>
+                                </select>
+                            </div>
+
+                            <div class="space-y-1.5">
+                                <label class="flex items-center gap-3 cursor-pointer">
+                                    <input type="checkbox" id="self_critique" name="self_critique" value="true" class="w-5 h-5 rounded border-surface-200 dark:border-white/10 text-accent focus:ring-accent/20" />
+                                    <span class="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Self-Critique Loop (Agent critiques & rewrites its own work)</span>
+                                </label>
+                            </div>
+                        </div>
+                    </details>
+
                     <div class="space-y-1.5">
                         <label class="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider ml-1">Description</label>
                         <textarea id="description" name="description" rows="3" 

@@ -20,6 +20,10 @@ class BookProject:
     target_length: int
     writing_style: str
     skill: Optional[str] = None  # Domain-specific skill: fiction-writer, non-fiction-author, academic-writer, childrens-book-creator, screenplay-writer
+    structure_template: Optional[str] = None  # Structural template: save_the_cat, heros_journey, three_act, seven_point, freytag, none
+    style_voice: Optional[str] = None  # Style transfer voice: hemingway, literary, thriller, romance, scifi, fantasy, technical, poetic
+    draft_passes: int = 1  # Number of draft passes (1-4): rough, structural, line_edit, proofread
+    self_critique: bool = False  # Whether to run self-critique loop on each chapter
     status: str = "created"
     outline: Optional[Dict[str, Any]] = None
     research_materials: Optional[Dict[str, Any]] = None
@@ -41,6 +45,10 @@ class BookProject:
             'target_length': self.target_length,
             'writing_style': self.writing_style,
             'skill': self.skill,
+            'structure_template': self.structure_template,
+            'style_voice': self.style_voice,
+            'draft_passes': self.draft_passes,
+            'self_critique': self.self_critique,
             'status': self.status,
             'outline': self.outline,
             'research_materials': self.research_materials,
@@ -69,6 +77,10 @@ class BookProject:
             target_length=data['target_length'],
             writing_style=data['writing_style'],
             skill=data.get('skill'),
+            structure_template=data.get('structure_template'),
+            style_voice=data.get('style_voice'),
+            draft_passes=data.get('draft_passes', 1),
+            self_critique=data.get('self_critique', False),
             status=data.get('status', 'created'),
             outline=data.get('outline'),
             research_materials=data.get('research_materials'),
