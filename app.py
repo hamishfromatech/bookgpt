@@ -2524,34 +2524,8 @@ def get_supported_languages():
     })
 
 # =============================================================================
-# STORY ARC & VERSION DIFF ENDPOINTS
+# CHAPTER VERSION DIFF ENDPOINT
 # =============================================================================
-
-@app.route('/api/projects/<project_id>/story-arc', methods=['GET'])
-@login_required
-def get_story_arc_visualization(project_id):
-    """Get story arc timeline visualization for a project."""
-    try:
-        project = storage.get_project(project_id)
-        if not project:
-            return jsonify({'success': False, 'error': 'Project not found'}), 404
-
-        if project.user_id != current_user.id:
-            return jsonify({'success': False, 'error': 'Access denied'}), 403
-
-        # Generate story arc visualization using the agent
-        result = book_agent.generate_story_arc_visualization(project_id)
-        
-        return jsonify({
-            'success': result['success'],
-            'story_arc': result.get('story_arc'),
-            'html_visualization': result.get('html_visualization'),
-            'chapters_completed': result.get('chapters_completed', 0)
-        })
-
-    except Exception as e:
-        logger.error(f"Error getting story arc visualization: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/projects/<project_id>/chapters/<int:chapter_num>/diff', methods=['GET'])
 @login_required
