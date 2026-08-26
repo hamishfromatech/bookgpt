@@ -4,6 +4,7 @@ An autonomous AI agent that writes complete books using OpenAI (or OpenAI-compat
 
 ## Quick Links
 
+- **[Changelog](CHANGELOG.md)** - Full history of changes and updates
 - **[Installation Guide](docs/INSTALLATION.md)** - Step-by-step setup for beginners
 - [Expert Mode Guide](docs/expert-mode.md) - Advanced configuration
 - [Best Practices & Guide](docs/best-practices.md) - Tips, tricks, and agentic experience guide
